@@ -216,7 +216,9 @@ def follow_ups(question: str, answer: str, client=None) -> list[str]:
             max_completion_tokens=800,
         )
         items = json.loads(resp.choices[0].message.content or "{}").get("questions", [])
-        return [q.strip() for q in items if isinstance(q, str) and 0 < len(q.strip()) <= 140 and "[" not in q][:3]
+        return [
+            q.strip() for q in items if isinstance(q, str) and 0 < len(q.strip()) <= 140 and "[" not in q
+        ][:3]
     except Exception:
         return []
 
