@@ -21,7 +21,8 @@ uv run python -m app.agent "Who needs my attention this week?"
 **Two minutes with it.** Open the page and tap *Who needs my attention this week?* Watch the
 queries run, then tap a citation like `visit 293` to open the record behind it. Ask *Were any
 visits missed or late?* and see it say the data can't tell. Tap a suggested follow-up. Open
-[docs/journey.html](docs/journey.html) for the architecture and how it was built.
+[docs/journey.html](docs/journey.html) for the architecture and how it was built, and read
+[DEMO.md](DEMO.md) for a ten-minute talk track with the questions people ask.
 
 | Setting | Default | Effect |
 |---|---|---|
