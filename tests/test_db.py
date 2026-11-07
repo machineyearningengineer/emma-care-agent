@@ -55,3 +55,9 @@ def test_row_cap_and_cell_cap():
 
 def test_error_is_returned_not_raised():
     assert "no such table" in db.run_sql("SELECT * FROM nope")["error"]
+
+
+def test_result_size_cap():
+    r = db.run_sql("SELECT note FROM visits")
+    assert r["truncated"] is True
+    assert sum(len(str(row)) for row in r["rows"]) <= db.MAX_RESULT_CHARS + 1000

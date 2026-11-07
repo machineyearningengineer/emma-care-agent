@@ -6,6 +6,7 @@ SQL it likes, and SQLite itself refuses anything that isn't a bounded read.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import time
@@ -15,6 +16,7 @@ DB_PATH = Path(os.environ.get("CARE_DB", Path(__file__).parent.parent / "sources
 
 MAX_ROWS = 200
 MAX_CELL_CHARS = 500
+MAX_RESULT_CHARS = 60_000  # whole result, so one query can't flood the prompt
 TIMEOUT_S = 2.0
 
 # Reads only. json_each/json_extract are FUNCTION calls; RECURSIVE allows WITH RECURSIVE.
@@ -55,7 +57,15 @@ def run_sql(sql: str, params: list | None = None, path: Path = DB_PATH) -> dict:
         rows = cur.fetchmany(MAX_ROWS + 1)
         columns = [d[0] for d in cur.description or []]
         truncated = len(rows) > MAX_ROWS
-        rows = [[_cell(v) for v in r] for r in rows[:MAX_ROWS]]
+        kept, size = [], 0
+        for r in rows[:MAX_ROWS]:
+            row = [_cell(v) for v in r]
+            size += len(json.dumps(row, ensure_ascii=False))
+            if size > MAX_RESULT_CHARS:
+                truncated = True
+                break
+            kept.append(row)
+        rows = kept
         return {
             "columns": columns,
             "rows": rows,
