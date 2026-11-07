@@ -9,6 +9,8 @@ a prompt, cap or model changes.
 |---|---|---|---|---|
 | 2025-11-07 | 30k result cap, no-ranges citation rule | gpt-5.5 | 8 golden questions + 2 paraphrases each (`--variants`), 2 repeats | 42/42, 1.8M tokens |
 | 2025-11-07 | same | gpt-5.5 | 12 probes (`evals/probes.py`), read by hand | no wrong claims; see below |
+| 2025-11-07 | gaps section only for questions about the records; refusals stop at one sentence | gpt-5.5 | full set, 2 repeats | 45/46: one answer wrote "(visit 293, visits 307, 308)" |
+| 2025-11-07 | citation rule gives the wrong forms as examples; evals also fail citations to records that do not exist | gpt-5.5 | medication, attention, alfred_week with variants, 5 repeats | 45/45 |
 | earlier | window rule for "any issues" | gpt-5.5 | medication, 5 repeats | 2/5 before, 5/5 after |
 | earlier | plan-date rule | gpt-5.5 | care_plans variant | failed, then passed |
 
