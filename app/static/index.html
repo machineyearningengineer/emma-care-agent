@@ -19,7 +19,10 @@
            border-radius:6px; padding:4px 10px; cursor:pointer; }
   .turn { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; }
   .q { font-weight:600; }
-  .a { white-space:pre-wrap; margin-top:8px; }
+  .a { margin-top:8px; }
+  .a p, .a ul, .a ol { margin:0 0 8px; }
+  .a h4 { margin:12px 0 4px; font-size:15px; }
+  .a code { font-size:13px; background:var(--bg); padding:0 3px; border-radius:3px; }
   .meta { color:var(--muted); font-size:13px; margin-top:8px; }
   details { margin-top:8px; }
   summary { cursor:pointer; color:var(--accent); font-size:13px; }
@@ -56,7 +59,26 @@ const EXAMPLES = [
 const history = [];
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+// Minimal Markdown: headings, bullet/numbered lists, bold, code. Escapes first, so model text can't inject HTML.
+const inline = (s) => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+const fmt = (s) => {
+  let html = "", list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const raw of esc(s).split("\n")) {
+    const h = raw.match(/^#{1,6}\s+(.*)/), ul = raw.match(/^\s*[-*]\s+(.*)/), ol = raw.match(/^\s*\d+[.)]\s+(.*)/);
+    if (ul || ol) {
+      const tag = ul ? "ul" : "ol";
+      if (list !== tag) { close(); html += `<${tag}>`; list = tag; }
+      html += `<li>${inline((ul || ol)[1])}</li>`;
+    } else {
+      close();
+      if (h) html += `<h4>${inline(h[1])}</h4>`;
+      else if (raw.trim()) html += `<p>${inline(raw)}</p>`;
+    }
+  }
+  close();
+  return html;
+};
 
 for (const q of EXAMPLES) {
   const b = document.createElement("button");
