@@ -57,16 +57,22 @@ def replay_stream(question: str, pace: float = 1.0):
     for word in re.findall(r"\S+\s*", rec["answer"]):
         time.sleep(0.012 * pace)
         yield {"type": "delta", "text": word}
-    yield {"type": "done", **rec, "replay": {"recorded": data.get("recorded"), "model": rec["model"]}}
+    done = {k: v for k, v in rec.items() if k != "follow_ups"}
+    yield {"type": "done", **done, "replay": {"recorded": data.get("recorded"), "model": rec["model"]}}
+    yield {"type": "suggestions", "questions": rec.get("follow_ups", [])}
 
 
 def record(questions: list[str]) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
-    from app.agent import ask
+    from app.agent import ask, follow_ups
+
+    def one(q: str) -> dict:
+        r = ask(q)
+        return {**r, "follow_ups": follow_ups(q, r["answer"])}
 
     with ThreadPoolExecutor(max_workers=5) as pool:
-        results = list(pool.map(ask, questions))
+        results = list(pool.map(one, questions))
     data = {
         "recorded": date.today().isoformat(),
         "answers": {_key(q): r for q, r in zip(questions, results, strict=True)},

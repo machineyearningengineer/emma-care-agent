@@ -15,6 +15,7 @@ def test_index_and_ask(monkeypatch):
     monkeypatch.setattr(server, "ask", fake_ask)
     c = TestClient(server.app)
     assert "Care data agent" in c.get("/").text
+    assert c.get("/static/app.js").status_code == 200 and c.get("/static/app.css").status_code == 200
     r = c.post("/api/ask", json={"question": "hi", "history": [{"role": "user", "content": "x"}]})
     assert (
         r.json()["answer"] == "ok"
@@ -72,7 +73,8 @@ def test_replay_mode_without_a_key(monkeypatch):
     assert c.get("/api/meta").json()["mode"] == "replay"
     r = c.post("/api/ask/stream", json={"question": replay.EXAMPLES[0]})
     events = [json.loads(line) for line in r.text.splitlines()]
-    assert events[-1]["type"] == "done" and events[-1]["replay"]["model"]
+    assert events[-2]["type"] == "done" and events[-2]["replay"]["model"]
+    assert events[-1]["type"] == "suggestions"
     r = c.post("/api/ask/stream", json={"question": "something not recorded"})
     last = json.loads(r.text.splitlines()[-1])
     assert last["type"] == "error" and "OPENAI_API_KEY" in last["detail"]
@@ -81,3 +83,15 @@ def test_replay_mode_without_a_key(monkeypatch):
 def test_meta_is_derived_from_the_data():
     r = TestClient(server.app).get("/api/meta").json()
     assert r["org"] == "Brookmere Care Team" and r["people"] == 10 and r["to"] == "2025-11-16 17:30:00"
+
+
+def test_citation_records():
+    c = TestClient(server.app)
+    v = c.get("/api/records/visit/293").json()
+    assert v["person"] == "Iris Bennett" and "morning medication" in v["note"]
+    med = next(a for a in v["activities"] if a["name"] == "Medication")
+    assert med["status"] == "Completed" and "not to have given" in med["comment"]
+    f = c.get("/api/records/form/22").json()
+    assert f["form"] == "Safeguarding Enquiry Report" and f["sections"][0]["items"]
+    assert c.get("/api/records/visit/99999").status_code == 404
+    assert c.get("/api/records/form/0").status_code == 422

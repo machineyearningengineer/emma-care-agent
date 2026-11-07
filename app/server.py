@@ -14,7 +14,9 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.agent import MODEL, ask, ask_stream
@@ -22,7 +24,9 @@ from app.db import connect
 from app.replay import EXAMPLES, mode, replay_stream
 
 app = FastAPI(title="Care data agent")
-INDEX = Path(__file__).parent / "static" / "index.html"
+STATIC = Path(__file__).parent / "static"
+INDEX = STATIC / "index.html"
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 log = logging.getLogger("care_agent")
 if not log.handlers:
@@ -84,6 +88,48 @@ def meta():
     }
 
 
+@app.get("/api/records/visit/{visit_id}")
+def visit_record(visit_id: int = PathParam(ge=1)):
+    """The source behind a "(visit N)" citation: the note and each activity, as recorded."""
+    con = connect()
+    try:
+        row = con.execute(
+            "SELECT v.id, v.start_time, v.end_time, v.status, v.note, v.activities, su.name, c.name "
+            "FROM visits v LEFT JOIN service_users su ON su.id = v.service_user_id "
+            "LEFT JOIN carers c ON c.id = v.carer_id WHERE v.id = ?",
+            [visit_id],
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No visit {visit_id}")
+    keys = ["id", "start_time", "end_time", "status", "note", "activities", "person", "carer"]
+    rec = dict(zip(keys, row, strict=True))
+    rec["activities"] = json.loads(rec["activities"] or "[]")
+    return {"kind": "visit", **rec}
+
+
+@app.get("/api/records/form/{form_id}")
+def form_record(form_id: int = PathParam(ge=1)):
+    """The source behind a "(form N)" citation: every section, question and answer."""
+    con = connect()
+    try:
+        row = con.execute(
+            "SELECT f.id, f.instance_title, fc.name, f.created_at, f.entity_type, su.name, f.form_data "
+            "FROM forms f LEFT JOIN form_configs fc ON fc.id = f.form_config_id "
+            "LEFT JOIN service_users su ON su.id = f.service_user_id WHERE f.id = ?",
+            [form_id],
+        ).fetchone()
+    finally:
+        con.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No form {form_id}")
+    keys = ["id", "title", "form", "created_at", "entity_type", "person", "sections"]
+    rec = dict(zip(keys, row, strict=True))
+    rec["sections"] = json.loads(rec["sections"] or "[]")
+    return {"kind": "form", **rec}
+
+
 @app.post("/api/ask")
 def api_ask(body: Ask, response: Response):
     """Whole answer as one JSON object. For curl, scripts and evals. Always live."""
@@ -122,7 +168,9 @@ def api_ask_stream(body: Ask):
             raise
         except Exception as e:  # headers are already sent, so failures travel as an event
             _log(rid, "error", error=f"{type(e).__name__}: {e}")
-            yield _line({"type": "error", "request_id": rid, "detail": f"{type(e).__name__}: {e}"})
+            # LookupError is an expected, user-facing message (replay has no answer); others show their type.
+            detail = str(e) if isinstance(e, LookupError) else f"{type(e).__name__}: {e}"
+            yield _line({"type": "error", "request_id": rid, "detail": detail})
 
     # A sync generator runs in a worker thread, so slow model calls don't block other requests.
     return StreamingResponse(

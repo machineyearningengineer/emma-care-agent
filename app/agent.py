@@ -21,6 +21,10 @@ load_dotenv()
 # The app answers with the stronger model; evals default to the cheap one (evals/run.py).
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 MAX_STEPS = 8  # model turns that may call tools; the next turn must answer
+# Prompt tokens one question may spend before the next turn must answer. Every step re-sends the
+# conversation so far, so cost grows with steps; this caps it whatever the model does.
+TOKEN_BUDGET = 150_000
+FOLLOW_UP_MODEL = os.environ.get("FOLLOW_UP_MODEL", "gpt-5.4-mini")
 
 SYSTEM = """\
 You help care managers understand how the people their home-care service supports are doing,
@@ -90,6 +94,7 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
       {"type": "delta", "text"}                answer text as the model writes it
       {"type": "discard"}                      text written alongside tool calls; drop it
       {"type": "done", "answer", "trace", "model", "steps", "usage", "seconds"}
+      {"type": "suggestions", "questions"}     up to 3 follow-ups, after done (callers may stop at done)
     """
     client = client or OpenAI(timeout=90, max_retries=2)
     started = time.perf_counter()
@@ -104,7 +109,7 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
 
     for step in range(MAX_STEPS + 1):
-        final = step == MAX_STEPS
+        final = step == MAX_STEPS or usage["prompt_tokens"] >= TOKEN_BUDGET
         text: list[str] = []
         calls: dict[int, dict] = {}
         stream = client.chat.completions.create(
@@ -138,15 +143,17 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
                         c["arguments"] += tc.function.arguments or ""
 
         if not calls or final:
+            answer = "".join(text)
             yield {
                 "type": "done",
-                "answer": "".join(text),
+                "answer": answer,
                 "trace": trace,
                 "model": model,
                 "steps": step + 1,
                 "usage": usage,
                 "seconds": round(time.perf_counter() - started, 1),
             }
+            yield {"type": "suggestions", "questions": follow_ups(question, answer, client)}
             return
         if text:
             yield {"type": "discard"}
@@ -184,6 +191,34 @@ def ask(question: str, history: list[dict] | None = None, model: str = MODEL, cl
         if event["type"] == "done":
             return {k: v for k, v in event.items() if k != "type"}
     raise RuntimeError("agent stream ended without an answer")
+
+
+FOLLOW_UP_PROMPT = """\
+A care manager asked a question about their home-care service and got the answer below.
+Suggest up to 3 short follow-up questions they would plausibly ask next. Each must be answerable
+from visit notes, care plans, risk assessments or safeguarding forms, and name the person when
+relevant, using real names from the answer and never placeholders. Don't ask again what the
+answer says the records can't show. Return JSON: {"questions": ["...", "..."]}"""
+
+
+def follow_ups(question: str, answer: str, client=None) -> list[str]:
+    """Suggested next questions from a cheap model. Never fails the answer: errors give []."""
+    if not answer.strip():
+        return []
+    try:
+        resp = (client or OpenAI(timeout=20, max_retries=1)).chat.completions.create(
+            model=FOLLOW_UP_MODEL,
+            messages=[
+                {"role": "system", "content": FOLLOW_UP_PROMPT},
+                {"role": "user", "content": f"Question: {question}\n\nAnswer:\n{answer[:6000]}"},
+            ],
+            response_format={"type": "json_object"},
+            max_completion_tokens=800,
+        )
+        items = json.loads(resp.choices[0].message.content or "{}").get("questions", [])
+        return [q.strip() for q in items if isinstance(q, str) and 0 < len(q.strip()) <= 140 and "[" not in q][:3]
+    except Exception:
+        return []
 
 
 def _parse_args(call: dict) -> dict:

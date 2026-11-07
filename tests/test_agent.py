@@ -55,9 +55,10 @@ def test_tool_call_then_streamed_answer():
         ]
     )
     events = list(agent.ask_stream("how many visits?", client=client))
-    assert [e["type"] for e in events] == ["query", "result", "delta", "delta", "done"]
+    assert [e["type"] for e in events] == ["query", "result", "delta", "delta", "done", "suggestions"]
     assert events[0]["sql"] == SQL and events[1]["row_count"] == 1
-    done = events[-1]
+    done = events[-2]
+    assert events[-1] == {"type": "suggestions", "questions": []}  # fake client has no reply; fails soft
     assert done["answer"] == "336 visits." and done["usage"] == {
         "prompt_tokens": 300,
         "completion_tokens": 15,
@@ -76,7 +77,7 @@ def test_text_written_alongside_tool_calls_is_discarded():
         ]
     )
     types = [e["type"] for e in agent.ask_stream("q", client=client)]
-    assert types == ["delta", "discard", "query", "result", "delta", "done"]
+    assert types == ["delta", "discard", "query", "result", "delta", "done", "suggestions"]
     assert agent.ask("q", client=FakeClient([[chunk("Done.")]]))["answer"] == "Done."
 
 
@@ -103,3 +104,16 @@ def test_bad_tool_arguments_go_back_as_errors():
     )
     r = agent.ask("q", client=client)
     assert r["answer"] == "Read-only." and all("error" in t for t in r["trace"])
+
+
+def test_token_budget_forces_an_answer():
+    def turn(kw):
+        if kw["tool_choice"] == "none":
+            return [chunk("Budget answer.")]
+        return [
+            chunk(tool=(0, "c", "run_sql", json.dumps({"sql": SQL}))),
+            chunk(usage=(agent.TOKEN_BUDGET, 1)),
+        ]
+
+    r = agent.ask("q", client=FakeClient([turn, turn]))
+    assert r["answer"] == "Budget answer." and r["steps"] == 2
