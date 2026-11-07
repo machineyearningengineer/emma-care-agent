@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Care data agent</title>
+<style>
+  :root { --bg:#fafaf9; --fg:#1c1917; --muted:#78716c; --card:#fff; --line:#e7e5e4; --accent:#0f766e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1c1917; --fg:#f5f5f4; --muted:#a8a29e; --card:#292524; --line:#44403c; --accent:#5eead4; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:24px 16px 160px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 16px; }
+  .examples button { margin:0 6px 6px 0; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--fg);
+           border-radius:6px; padding:4px 10px; cursor:pointer; }
+  .turn { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; }
+  .q { font-weight:600; }
+  .a { white-space:pre-wrap; margin-top:8px; }
+  .meta { color:var(--muted); font-size:13px; margin-top:8px; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--accent); font-size:13px; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px;
+        overflow-x:auto; font-size:12px; white-space:pre-wrap; }
+  .err { color:#b91c1c; }
+  form { position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--line); }
+  .bar { max-width:860px; margin:0 auto; padding:12px 16px; display:flex; gap:8px; }
+  textarea { flex:1; font:inherit; padding:8px; border:1px solid var(--line); border-radius:6px;
+             background:var(--card); color:var(--fg); resize:vertical; min-height:44px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Care data agent</h1>
+  <p class="sub">Ask about how service users are doing and any risks. Read-only; each answer shows the SQL it ran.</p>
+  <div class="examples" id="examples"></div>
+  <div id="log"></div>
+</main>
+<form id="f">
+  <div class="bar">
+    <textarea id="q" placeholder="e.g. Who needs my attention this week?" required></textarea>
+    <button id="go">Ask</button>
+  </div>
+</form>
+<script>
+const EXAMPLES = [
+  "Who needs my attention this week?",
+  "Are there any medication issues I should know about?",
+  "Were any visits missed or late?",
+  "What open safeguarding cases are there and what is still pending?",
+  "Summarise Alfred Nkemelu's last 7 days.",
+];
+const history = [];
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+
+for (const q of EXAMPLES) {
+  const b = document.createElement("button");
+  b.type = "button"; b.textContent = q;
+  b.onclick = () => { $("q").value = q; $("f").requestSubmit(); };
+  $("examples").append(b);
+}
+
+$("q").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("f").requestSubmit(); }
+});
+
+$("f").onsubmit = async (e) => {
+  e.preventDefault();
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("q").value = ""; $("go").disabled = true;
+  const turn = document.createElement("div");
+  turn.className = "turn";
+  turn.innerHTML = `<div class="q">${esc(question)}</div><div class="a meta">Thinking…</div>`;
+  $("log").append(turn); turn.scrollIntoView({behavior: "smooth"});
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({question, history: history.slice(-6)}),
+    });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.detail || res.statusText);
+    history.push({role: "user", content: question}, {role: "assistant", content: r.answer});
+    const queries = r.trace.map((t, i) =>
+      `<pre>-- ${i + 1}. ${t.error ? "error: " + esc(t.error) : t.row_count + " rows" + (t.truncated ? " (truncated)" : "")}, ${t.ms} ms\n${esc(t.sql)}${t.params && t.params.length ? "\n-- params: " + esc(JSON.stringify(t.params)) : ""}</pre>`
+    ).join("");
+    turn.innerHTML = `<div class="q">${esc(question)}</div>
+      <div class="a">${fmt(r.answer)}</div>
+      <details><summary>${r.trace.length} queries · ${r.model} · ${r.seconds}s · ${(r.usage.prompt_tokens + r.usage.completion_tokens).toLocaleString()} tokens</summary>${queries}</details>`;
+  } catch (err) {
+    turn.querySelector(".a").outerHTML = `<div class="a err">${esc(String(err.message || err))}</div>`;
+  } finally {
+    $("go").disabled = false; $("q").focus();
+  }
+};
+</script>
+</body>
+</html>
