@@ -390,26 +390,27 @@ async function openRecord(kind, id, back, claim) {
     dlg.querySelector("form").prepend(b);
   }
 }
-// Records grouped under the line of the answer that cites them: a few lines, each with its sources as chips.
+// One entry per record, with the lines of the answer that rely on it. A single record opens straight away.
 function showCited(cited, answer) {
-  const groups = [...answer.querySelectorAll("li, p")].map((node) => ({ node, cites: [...node.querySelectorAll(".cite[data-id]")] })).filter((g) => g.cites.length);
+  const lines = (c) => [...answer.querySelectorAll("li, p")].filter((n) => n.querySelector(`.cite[data-kind="${c.kind}"][data-id="${c.id}"]`)).map((node) => ({ node, text: sentenceAround(node.querySelector(".cite")) }));
+  const back = () => showCited(cited, answer);
+  if (cited.length === 1) return openRecord(cited[0].kind, cited[0].id, null, lines(cited[0]).map((l) => l.text));
   const list = el("div", "rec-body");
-  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Tap a source to read it, or a line to find it in the answer.</p>`;
-  for (const { node, cites } of groups) {
-    const line = sentenceAround(cites[0]);
-    const group = el("div", "rec-group");
-    const text = el("button", "rec-line", ""); text.type = "button"; text.textContent = line;
-    text.addEventListener("click", () => {
-      dlg.close(); node.scrollIntoView({ block: "center", behavior: "smooth" });
-      node.classList.add("flash"); setTimeout(() => node.classList.remove("flash"), 2200);
-    });
-    const chips = el("div", "rec-chips");
-    for (const c of cites) {
-      const chip = el("button", "rec-chip", `${c.dataset.kind === "visit" ? "Visit" : "Form"} ${c.dataset.id}`); chip.type = "button";
-      chip.addEventListener("click", () => openRecord(c.dataset.kind, c.dataset.id, () => showCited(cited, answer), line));
-      chips.append(chip);
+  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Tap a record to read it, or a line to find it in the answer.</p>`;
+  for (const c of cited) {
+    const at = lines(c), group = el("div", "rec-group");
+    const chip = el("button", "rec-chip", `${c.kind === "visit" ? "Visit" : "Form"} ${c.id}`); chip.type = "button";
+    chip.addEventListener("click", () => openRecord(c.kind, c.id, back, at.map((l) => l.text)));
+    group.append(chip);
+    for (const { node, text } of at) {
+      const line = el("button", "rec-line"); line.type = "button"; line.textContent = text;
+      line.addEventListener("click", () => {
+        dlg.close(); node.scrollIntoView({ block: "center", behavior: "smooth" });
+        node.classList.add("flash"); setTimeout(() => node.classList.remove("flash"), 2200);
+      });
+      group.append(line);
     }
-    group.append(text, chips); list.append(group);
+    list.append(group);
   }
   list.insertAdjacentHTML("beforeend", `<form method="dialog"><button class="link-btn">Close</button></form>`);
   dlg.replaceChildren(list);
@@ -417,7 +418,7 @@ function showCited(cited, answer) {
 }
 $("thread").addEventListener("click", (e) => {
   const c = e.target.closest(".cite");
-  if (c) openRecord(c.dataset.kind, c.dataset.id, null, sentenceAround(c));
+  if (c) openRecord(c.dataset.kind, c.dataset.id, null, [sentenceAround(c)]);
 });
 // The line of the answer a citation belongs to, so the record can say what it is being checked against.
 const sentenceAround = (cite) => {
@@ -437,7 +438,7 @@ function renderRecord(r, claim) {
   const head = isVisit
     ? `<div class="rec-kind">Visit ${r.id}</div><h3>${esc(r.person || "")}</h3><div class="rec-meta">${when(r.start_time, r.end_time)} · carer ${esc(r.carer || "unknown")}${r.status === "Completed" ? "" : " · " + esc(r.status)}</div>`
     : `<div class="rec-kind">${label} ${r.id}</div><h3>${esc(r.title || r.form || "Form")}</h3><div class="rec-meta">${r.person ? esc(r.person) + " · " : ""}created ${when(r.created_at)}</div>`;
-  let body = claim ? `<div class="rec-claim"><span>The answer says</span>${esc(claim)}</div>` : "";
+  let body = claim?.length ? `<div class="rec-claim"><span>The answer says</span>${claim.map((c) => `<p>${esc(c)}</p>`).join("")}</div>` : "";
   if (isVisit) {
     body += `<h4>Visit note, as recorded</h4><blockquote>${esc(r.note || "No note")}</blockquote>`;
     const acts = r.activities || [];
