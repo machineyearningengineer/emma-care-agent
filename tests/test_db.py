@@ -51,6 +51,7 @@ def test_row_cap_and_cell_cap():
     assert r["row_count"] == db.MAX_ROWS and r["truncated"] is True
     r = db.run_sql("SELECT form_data FROM forms LIMIT 1")
     assert r["rows"][0][0].endswith("…[truncated]")
+    assert r["cells_truncated"] is True and "json_extract" in r["warning"]
 
 
 def test_error_is_returned_not_raised():
@@ -61,3 +62,13 @@ def test_result_size_cap():
     r = db.run_sql("SELECT note FROM visits")
     assert r["truncated"] is True and "not seen" in r["warning"]
     assert sum(len(str(row)) for row in r["rows"]) <= db.MAX_RESULT_CHARS + 1000
+
+
+def test_huge_value_rejected_not_built():
+    # One native call isn't interruptible by the progress handler; the length limit stops it.
+    assert "too big" in db.run_sql("SELECT replace(hex(zeroblob(100000000)), '0', 'ab')")["error"]
+    assert db.run_sql("SELECT printf('%.*c', 10000000, 'a')")["rows"] == [[None]]
+
+
+def test_blob_is_reported_not_raised():
+    assert db.run_sql("SELECT zeroblob(16)")["rows"] == [["<16 bytes>"]]
