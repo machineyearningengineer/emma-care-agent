@@ -319,7 +319,7 @@ Layer: Server. Built in step 6; changed in steps 6, 7, 9, 10, 16, 19.
   - No per-user quotas, because the app has no user identity.
 - Breaks first: Each live question holds a worker thread for up to 120 seconds before the final answer turn starts.
 - At scale: An async client or a queue, and per-user quotas, which need identity first.
-- Next steps touching it: n4 Fan out per person
+- Next steps touching it: n4 Fan out per person; n6 Durable questions
 
 ### Event protocol
 
@@ -332,6 +332,7 @@ Layer: Server. Built in step 9; changed in steps 9.
   - Typed dicts checked in tests, not a schema service. A new event type needs one edit and one test.
 - Breaks first: Nothing. The protocol lived in a docstring until the step 9 audit.
 - At scale: Version the events once a second client exists.
+- Next steps touching it: n6 Durable questions
 
 ### Record lookup
 
@@ -388,7 +389,7 @@ Layer: Agent. Built in step 4; changed in steps 4, 7, 10, 14, 15.
   - We turned down letting the model run until it stops by itself, because one confused question could spend without limit.
 - Breaks first: Recall on broad questions. The model reads a slice of the notes and can answer confidently, and a missed person raises no error.
 - At scale: Shortlist people with SQL, give each one a small context in parallel, then rank.
-- Next steps touching it: n1 Measure recall with varied text; n3 One page per person; n4 Fan out per person
+- Next steps touching it: n1 Measure recall with varied text; n3 One page per person; n4 Fan out per person; n6 Durable questions
 
 ### Model
 
@@ -730,3 +731,12 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Before: keywords
 - After: embeddings combined with FTS5 to propose candidates
 - Touches: Views and full-text index
+
+### Durable questions
+
+- Problem: A question lives only in its HTTP stream. Closing the page cancels it, a server restart loses it, the page's queue of 3 is lost on reload, and nothing stops the same question running twice. Every query only reads, so a repeat is safe but paid twice.
+- Build it when: With sign-in and saved history, or when answers get long enough that losing one hurts.
+- Why not yet: Answers take about 15 seconds and nothing is saved yet, so a retry is cheap and honest. A job store needs sign-in to know whose job it is.
+- Before: one in-process stream per question; the ninth live question is refused (Busy), not queued
+- After: each question stored as a job with a client idempotency key; workers run it and append its NDJSON events to a log; the page resumes from the last event it saw
+- Touches: FastAPI server, Event protocol, Agent loop

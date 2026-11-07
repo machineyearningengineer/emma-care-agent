@@ -769,3 +769,11 @@ next:
     A: keywords
     B: embeddings combined with FTS5 to propose candidates
     touches: [readmodel]
+  - id: n6
+    title: Durable questions
+    problem: A question lives only in its HTTP stream. Closing the page cancels it, a server restart loses it, the page's queue of 3 is lost on reload, and nothing stops the same question running twice. Every query only reads, so a repeat is safe but paid twice.
+    why_not_yet: Answers take about 15 seconds and nothing is saved yet, so a retry is cheap and honest. A job store needs sign-in to know whose job it is.
+    trigger: With sign-in and saved history, or when answers get long enough that losing one hurts.
+    A: one in-process stream per question; the ninth live question is refused (Busy), not queued
+    B: each question stored as a job with a client idempotency key; workers run it and append its NDJSON events to a log; the page resumes from the last event it saw
+    touches: [server, events, agent]
