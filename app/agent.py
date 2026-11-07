@@ -99,7 +99,9 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
         {"role": "user", "content": question},
     ]
     trace: list[dict] = []
-    usage = {"prompt_tokens": 0, "completion_tokens": 0}
+    # cached_tokens: prompt tokens the provider served from its prefix cache. Each step's prompt
+    # starts with the previous step's, so most of a multi-step question should hit it.
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
 
     for step in range(MAX_STEPS + 1):
         final = step == MAX_STEPS
@@ -112,12 +114,16 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
             tool_choice="none" if final else "auto",
             stream=True,
             stream_options={"include_usage": True},
+            # Same key for every request: they share the system prompt, so the provider can reuse it.
+            prompt_cache_key="care-agent",
         )
         with stream:  # closes the HTTP stream if the caller stops listening
             for chunk in stream:
                 if chunk.usage:
                     usage["prompt_tokens"] += chunk.usage.prompt_tokens
                     usage["completion_tokens"] += chunk.usage.completion_tokens
+                    details = getattr(chunk.usage, "prompt_tokens_details", None)
+                    usage["cached_tokens"] += getattr(details, "cached_tokens", 0) or 0
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta

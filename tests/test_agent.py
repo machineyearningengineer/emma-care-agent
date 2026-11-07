@@ -61,6 +61,7 @@ def test_tool_call_then_streamed_answer():
     assert done["answer"] == "336 visits." and done["usage"] == {
         "prompt_tokens": 300,
         "completion_tokens": 15,
+        "cached_tokens": 0,
     }
     # The tool result went back to the model with the right call id.
     tool_msg = client.calls[1]["messages"][-1]

@@ -55,7 +55,8 @@ def main():
     for c in cases:
         runs = [r for r in results if r["id"] == c["id"]]
         passed = sum(not r["failures"] for r in runs)
-        tokens += sum(sum(r.get("usage", {}).values()) for r in runs)
+        usage = [r.get("usage", {}) for r in runs]
+        tokens += sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in usage)
         print(f"{'PASS' if passed == len(runs) else 'FAIL'}  {passed}/{len(runs)}  {c['id']}")
         for r in runs:
             if r["failures"]:
