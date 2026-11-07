@@ -120,6 +120,12 @@ Replay mode records real answers so the app runs with no key.
 **Turned down:** the Responses API for finer control, which is a bigger change for the same gain.
 **Caveat:** the evidence is 8 questions run once each, and the peak context on the broad question was 41k to 75k tokens, higher than the 32k seen in the scale check.
 
+### 13. Shorter answers and calmer streaming (22:30)
+**A → B:** answers of 580 to 1,100 words, whole answer re-rendered on every token, and a "N records cited" label that did nothing → a prompt asking for a ranked list, three evidence bullets per person at most and under 250 words (403 words on the broad question, no em dashes), whole-line streaming, and a cited-records list that opens each record.
+**Found:** a live walk through 11 questions. Alfred and Doris, the two people getting worse with no form raised, ranked last, so the prompt now ranks that case first. Follow-up chips invented names. The first short prompt dropped Alfred's confusion, so evidence bullets now cover one concern each. 8 of 8 evals pass.
+**Turned down:** token-by-token streaming (re-renders everything and shows broken citations) and saving history across reloads (the page starts empty on purpose).
+**Caveat:** a short answer can omit a real concern, and the evals check named facts, not the whole answer.
+
 ## What Anthropic's memory write-up changes
 
 [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)

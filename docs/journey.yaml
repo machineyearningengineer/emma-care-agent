@@ -391,6 +391,18 @@ steps:
     rejected: ["The Responses API for finer control of reasoning: a bigger change for the same gain.", "gpt-5.4-mini as the default: one run missed a person."]
     breaks: Less thinking can cost depth on hard questions. The evidence is 8 questions, run once each.
 
+  - id: 13
+    when: "22:30"
+    title: Shorter answers and calmer streaming
+    commits: [e623196]
+    nodes: [model, page]
+    A: answers of 580 to 1,100 words, text re-rendered on every token, and "N records cited" that did nothing when tapped
+    B: a prompt that asks for a ranked list, at most 3 evidence bullets per person and under 250 words, whole-line streaming, and a cited-records list you can open
+    why: A manager acts on an answer in seconds. Long answers hid the point, and half-written lines flashed in with half-formed citations.
+    found: A live walk through 11 questions found long answers, a ranking that put the two people getting worse with no form raised last, invented names in follow-up chips, and raw dashes in the question list. The first short prompt dropped Alfred's confusion, so the evidence rule now asks for one bullet per concern.
+    rejected: ["Streaming every token: it re-renders the whole answer each time and shows broken citations.", "Saving history across reloads: not yet, the page starts empty on purpose."]
+    breaks: A short answer can leave out a real concern. The evals check the named facts, not the whole answer.
+
 next:
   - id: n1
     title: Measure recall with varied text

@@ -26,7 +26,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -127,7 +127,7 @@ Layer: Agent. Built in step 4; changed in steps 4, 7, 10.
 
 ### Model
 
-Layer: Agent. Built in step 4; changed in steps 4, 12.
+Layer: Agent. Built in step 4; changed in steps 4, 12, 13.
 
 - What it does: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop.
 - Always true: The prompt carries a version hash. It is logged and returned with every answer.
@@ -344,6 +344,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: On the broad question gpt-5.5 took 51 to 73 seconds with reasoning on and 19 to 21 seconds with it off. All five people were still found and 8 of 8 evals passed. gpt-5.4-mini missed one person in a single default run.
 - Turned down: The Responses API for finer control of reasoning: a bigger change for the same gain. gpt-5.4-mini as the default: one run missed a person.
 - Breaks next: Less thinking can cost depth on hard questions. The evidence is 8 questions, run once each.
+
+### Step 13, 22:30 on 7 Nov: Shorter answers and calmer streaming
+
+- Before: answers of 580 to 1,100 words, text re-rendered on every token, and "N records cited" that did nothing when tapped
+- After: a prompt that asks for a ranked list, at most 3 evidence bullets per person and under 250 words, whole-line streaming, and a cited-records list you can open
+- Why: A manager acts on an answer in seconds. Long answers hid the point, and half-written lines flashed in with half-formed citations.
+- Found: A live walk through 11 questions found long answers, a ranking that put the two people getting worse with no form raised last, invented names in follow-up chips, and raw dashes in the question list. The first short prompt dropped Alfred's confusion, so the evidence rule now asks for one bullet per concern.
+- Turned down: Streaming every token: it re-renders the whole answer each time and shows broken citations. Saving history across reloads: not yet, the page starts empty on purpose.
+- Breaks next: A short answer can leave out a real concern. The evals check the named facts, not the whole answer.
 
 ## What comes next
 
