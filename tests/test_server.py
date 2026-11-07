@@ -1,5 +1,7 @@
 """Server wiring with the agent stubbed out. No API calls."""
 
+import json
+
 from fastapi.testclient import TestClient
 
 from app import server
@@ -22,8 +24,6 @@ def test_index_static_and_input_limits(monkeypatch):
 
 
 def test_stream_sends_events_and_reports_failure_as_event(monkeypatch):
-    import json
-
     seen = {}
 
     def fake_stream(question, history):
@@ -46,8 +46,6 @@ def test_stream_sends_events_and_reports_failure_as_event(monkeypatch):
 
 
 def test_replay_mode_without_a_key(monkeypatch):
-    import json
-
     from app import replay
 
     monkeypatch.setenv("CARE_AGENT_MODE", "replay")
@@ -80,3 +78,52 @@ def test_citation_records():
     assert f["form"] == "Safeguarding Enquiry Report" and f["sections"][0]["items"]
     assert c.get("/api/records/visit/99999").status_code == 404
     assert c.get("/api/records/form/0").status_code == 422
+
+
+def _fake_done_stream(question, history):
+    usage = {"prompt_tokens": 5, "completion_tokens": 1, "cached_tokens": 0, "peak_prompt_tokens": 5}
+    trace = [{"sql": "SELECT 1 -- Iris", "params": ["Iris"], "ms": 1, "row_count": 1, "truncated": True}]
+    yield {"type": "result", **trace[0]}
+    yield {
+        "type": "done",
+        "answer": "ok",
+        "trace": trace,
+        "model": "fake",
+        "steps": 1,
+        "usage": usage,
+        "seconds": 0,
+    }
+
+
+def _logged(monkeypatch, content):
+    lines = []
+    monkeypatch.setattr(server.log, "info", lines.append)
+    monkeypatch.setattr(server, "LOG_CONTENT", content)
+    monkeypatch.setattr(server, "ask_stream", _fake_done_stream)
+    monkeypatch.setenv("CARE_AGENT_MODE", "live")
+    TestClient(server.app).post("/api/ask/stream", json={"question": "How is Iris?"})
+    return [json.loads(x) for x in lines]
+
+
+def test_logs_leave_out_names_unless_asked(monkeypatch):
+    quiet = _logged(monkeypatch, content=False)
+    assert "Iris" not in json.dumps(quiet) and quiet[0]["question_chars"] == 12
+    done = next(e for e in quiet if e["event"] == "done")
+    assert done["queries"] == 1 and done["truncated"] == 1 and done["peak_prompt_tokens"] == 5
+    assert "How is Iris?" in json.dumps(_logged(monkeypatch, content=True))
+
+
+def test_live_questions_are_capped_and_slots_come_back(monkeypatch):
+    import threading
+
+    monkeypatch.setattr(server, "_live_slots", threading.BoundedSemaphore(1))
+    monkeypatch.setattr(server, "ask_stream", _fake_done_stream)
+    monkeypatch.setenv("CARE_AGENT_MODE", "live")
+    c = TestClient(server.app)
+    assert server._live_slots.acquire(blocking=False)  # someone else holds the only slot
+    busy = [json.loads(x) for x in c.post("/api/ask/stream", json={"question": "x"}).text.splitlines()]
+    assert busy[-1]["type"] == "error" and "Busy" in busy[-1]["detail"]
+    server._live_slots.release()
+    for _ in range(2):  # a finished question gives its slot back
+        events = [json.loads(x) for x in c.post("/api/ask/stream", json={"question": "x"}).text.splitlines()]
+        assert events[-1]["type"] == "done"

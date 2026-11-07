@@ -66,6 +66,7 @@ def test_tool_call_then_streamed_answer():
         "prompt_tokens": 300,
         "completion_tokens": 15,
         "cached_tokens": 0,
+        "peak_prompt_tokens": 200,  # the largest single call, not the sum
     }
     # The tool result went back to the model with the right call id.
     tool_msg = client.calls[1]["messages"][-1]

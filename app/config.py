@@ -19,6 +19,10 @@ MAX_STEPS = 8  # model turns that may call tools
 TOKEN_BUDGET = 150_000  # prompt tokens spent so far (every step re-sends the conversation)
 DEADLINE_S = 120  # wall clock
 
+# Cost and privacy guards for a live deployment.
+MAX_CONCURRENT = 8  # live questions running at once; one more is told to retry, not queued
+LOG_CONTENT = os.environ.get("CARE_LOG_CONTENT") == "1"  # questions, SQL and params can name people
+
 # Request limits. Served to the page by /api/meta, so the page never carries its own copy.
 QUESTION_CHARS = 2000
 HISTORY_MESSAGES = 6  # prior messages (user and assistant) sent back with a question

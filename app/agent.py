@@ -109,7 +109,7 @@ def ask_stream(
     trace: list[dict] = []
     # cached_tokens: prompt tokens the provider served from its prefix cache. Each step's prompt
     # starts with the previous step's, so most of a multi-step question should hit it.
-    usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
+    usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0, "peak_prompt_tokens": 0}
 
     for step in range(MAX_STEPS + 1):
         final = (
@@ -133,6 +133,7 @@ def ask_stream(
             for chunk in stream:
                 if chunk.usage:
                     usage["prompt_tokens"] += chunk.usage.prompt_tokens
+                    usage["peak_prompt_tokens"] = max(usage["peak_prompt_tokens"], chunk.usage.prompt_tokens)
                     usage["completion_tokens"] += chunk.usage.completion_tokens
                     details = getattr(chunk.usage, "prompt_tokens_details", None)
                     usage["cached_tokens"] += getattr(details, "cached_tokens", 0) or 0

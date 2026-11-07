@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -21,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from app import records
 from app.agent import PROMPT_VERSION, ask_stream
-from app.config import HISTORY_MESSAGES, MODEL, QUESTION_CHARS, mode
+from app.config import HISTORY_MESSAGES, LOG_CONTENT, MAX_CONCURRENT, MODEL, QUESTION_CHARS, mode
 from app.replay import EXAMPLES, replay_stream
 
 app = FastAPI(title="Care data agent")
@@ -38,8 +39,14 @@ if not log.handlers:
     log.propagate = False
 
 
+_live_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
+_CONTENT_FIELDS = {"question", "sql", "params"}  # can name people; logged only when CARE_LOG_CONTENT=1
+
+
 def _log(request_id: str, event: str, **fields) -> None:
     """One JSON object per line: easy to grep, easy to ship to any log store."""
+    if not LOG_CONTENT:
+        fields = {k: v for k, v in fields.items() if k not in _CONTENT_FIELDS}
     log.info(
         json.dumps(
             {"ts": round(time.time(), 3), "request_id": request_id, "event": event, **fields},
@@ -99,15 +106,43 @@ def api_ask_stream(body: Ask):
 
     def lines():
         started = time.perf_counter()
-        _log(rid, "ask", question=body.question, mode=run_mode, prompt=PROMPT_VERSION)
+        _log(
+            rid,
+            "ask",
+            question=body.question,
+            question_chars=len(body.question),
+            mode=run_mode,
+            prompt=PROMPT_VERSION,
+        )
         yield _line({"type": "start", "request_id": rid, "mode": run_mode})
-        events = ask_stream(body.question, history) if run_mode == "live" else replay_stream(body.question)
+        live = run_mode == "live"
+        if live and not _live_slots.acquire(blocking=False):
+            _log(rid, "busy")
+            yield _line(
+                {
+                    "type": "error",
+                    "request_id": rid,
+                    "detail": "Busy: too many questions are running. Try again in a moment.",
+                }
+            )
+            return
+        events = ask_stream(body.question, history) if live else replay_stream(body.question)
         try:
             for event in events:
                 if event["type"] == "result":
                     _log(rid, "query", **{k: v for k, v in event.items() if k != "type"})
                 elif event["type"] == "done":
-                    _log(rid, "done", steps=event["steps"], seconds=event["seconds"], **event["usage"])
+                    trace = event["trace"]
+                    _log(
+                        rid,
+                        "done",
+                        steps=event["steps"],
+                        seconds=event["seconds"],
+                        **event["usage"],
+                        queries=len(trace),
+                        truncated=sum(bool(t.get("truncated")) for t in trace),
+                        errors=sum("error" in t for t in trace),
+                    )
                 yield _line(event)
         except GeneratorExit:  # client went away; closing ask_stream closes the OpenAI stream
             _log(rid, "cancelled", seconds=round(time.perf_counter() - started, 1))
@@ -117,6 +152,9 @@ def api_ask_stream(body: Ask):
             # LookupError is an expected, user-facing message (replay has no answer); others show their type.
             detail = str(e) if isinstance(e, LookupError) else f"{type(e).__name__}: {e}"
             yield _line({"type": "error", "request_id": rid, "detail": detail})
+        finally:
+            if live:
+                _live_slots.release()
 
     # A sync generator runs in a worker thread, so slow model calls don't block other requests.
     return StreamingResponse(

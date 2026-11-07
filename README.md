@@ -72,6 +72,8 @@ distinct carers, and text in the database is data, not instructions.
   narrows instead of concluding.
 - SQL errors go back to the model as text so it can fix its own query, and the loop never
   crashes on them.
+- Logs leave out questions, SQL and params (they name people) unless `CARE_LOG_CONTENT=1`. At most
+  8 live questions run at once; another is told to retry.
 - A question is bounded three ways (`app/config.py`): 8 tool turns, 150k prompt tokens and 120 s.
   Past any of them the next turn must answer.
 

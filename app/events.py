@@ -50,6 +50,7 @@ class Usage(TypedDict):
     prompt_tokens: int
     completion_tokens: int
     cached_tokens: NotRequired[int]  # absent in recordings made before it was measured
+    peak_prompt_tokens: NotRequired[int]  # the largest single call: what the model's context actually held
 
 
 class Done(TypedDict):

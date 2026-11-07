@@ -66,13 +66,19 @@ Replay mode records real answers so the app runs with no key.
 **A → B:** hidden links → one `config.py`, one typed event protocol (`events.py`), SQL out of the server (`records.py`), a wall-clock bound, a prompt version hash, and strict `(visit 12)` citations.
 **Found:** `.env` was only loaded because the agent module happened to import first, and `mode()` was read three times per request.
 
+### 10. See it, and guard the edges (18:30)
+**A → B:** only total tokens were logged → the largest single call (`peak_prompt_tokens`), queries, cut-off results and SQL errors are logged for every answer. Live check on mini: the peak was 2.6k of 7.2k total tokens, so the model's context is far smaller than the bill suggests.
+**A → B:** questions, SQL and params went into the logs → they stay out unless `CARE_LOG_CONTENT=1`, because they name people.
+**A → B:** unlimited live questions → at most 8 at once. The ninth gets "Busy, try again" instead of queueing, so a burst can't run up cost or hold every thread.
+**Turned down:** a queue and per-user quotas. That needs identity, which this app doesn't have.
+
 ## Next, in the order we'd do it
 
 Each step is **not built**. The order follows what would break first.
 
 | # | Break at scale | A → B | Why |
 |---|---|---|---|
-| 1 | We can't see it | totals only → per-call prompt tokens, truncation rate, a recall eval on a 100x synthetic set | Missed people give no error, so recall has to be measured |
+| 1 | Missed people give no error | counted per answer → a recall eval on a 100x synthetic set | The logs now count cut-off results, but recall itself still has to be measured against known answers |
 | 2 | SQL mistakes and scans | nested JSON → a flattened view (one row per note or comment) plus the README's indexes | Fewer retries, fewer steps |
 | 3 | Free text is a scan | `LIKE` → FTS5, returning ids and snippets | Exact names and phrases, cheap and explainable |
 | 4 | Broad questions hit the cap | the model reads a slice → tags added when records are written (fall, intake, medication, mood), ranked in SQL | An index to narrow, never to answer: the agent still reads the raw text |
