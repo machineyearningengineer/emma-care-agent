@@ -148,8 +148,8 @@ Results on 7 Nov 2026:
   visible to the user. Medication and attention then passed 6/6, a small sample.
 - **gpt-5.5, 1 run:** 7/8. It correctly named Alfred and Doris as out of date, with
   dated evidence against each plan, but never said the plans themselves are undated since
-  3 Nov, so the check fails. It writes more thorough answers but takes 30–60 s on the
-  broad questions, against 10–20 s for mini.
+  3 Nov, so the check fails. It wrote more thorough answers, and with reasoning on it took 30–60 s on the
+  broad questions. With reasoning off (the default) it takes 10–20 s, the same as mini.
 - About 30k tokens per question on mini. `pytest` covers the guardrails, the loop, the stream protocol and the prompt/page contracts.
 
 What the first eval run caught, and the general fixes it led to:
@@ -169,8 +169,6 @@ What the first eval run caught, and the general fixes it led to:
   self-hosted model.
 - **No auth or per-team scoping.** Production would scope every query to the caller's
   `org_unit_id` in `run_sql`, not in the prompt.
-- Streaming answers and showing queries live would make the 20–60 s waits on long
-  questions feel shorter.
 
 How the design got here, step by step, with what changed and what was turned down: [JOURNEY.md](JOURNEY.md). Open [docs/journey.html](docs/journey.html) for the interactive version (`uv run python docs/build_journey.py` rebuilds it).
 

@@ -309,3 +309,4 @@ dialog.record::backdrop { background: rgb(0 0 0 / .4); }
 .rec-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .rec-chip { font: 550 .8em var(--font-ui); font-variant-numeric: tabular-nums; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--primary); cursor: pointer; }
 .rec-chip:hover { background: var(--primary-wash); }
+.rec-act { margin: 6px 0; color: var(--text-2); } .rec-act strong { color: var(--text); margin-right: 4px; }

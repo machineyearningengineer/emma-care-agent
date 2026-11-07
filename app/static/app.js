@@ -280,7 +280,7 @@ function stepNode(t, qy, i) {
 
 function footer(t) {
   const d = t.done, tokens = (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0), cited = citedRecords(t.text);
-  const parts = [d.replay ? `Recorded answer from ${d.replay.model} on ${d.replay.recorded}` : d.model, `${d.seconds}s`];
+  const parts = [d.replay ? `Recorded answer written by ${d.replay.model} on ${d.replay.recorded}` : `Written by ${d.model}`, `${d.seconds}s`];
   if (tokens) parts.push(`${fmtInt(tokens)} tokens`);
   if (t.requestId) parts.push(`request ${t.requestId}`);
   const copy = el("button", "link-btn", "Copy answer"); copy.type = "button";
@@ -372,7 +372,7 @@ function showCited(cited, answer) {
   const list = el("div", "rec-body");
   list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Tap a source to read it, or a line to find it in the answer.</p>`;
   for (const { node, cites } of groups) {
-    const line = sentenceAround(cites[0]).replace(/\s*\((?:visits?|forms?) [\d, ]+\)/gi, "");
+    const line = sentenceAround(cites[0]);
     const group = el("div", "rec-group");
     const text = el("button", "rec-line", ""); text.type = "button"; text.textContent = line;
     text.addEventListener("click", () => {
@@ -396,7 +396,11 @@ $("thread").addEventListener("click", (e) => {
   if (c) openRecord(c.dataset.kind, c.dataset.id, null, sentenceAround(c));
 });
 // The line of the answer a citation belongs to, so the record can say what it is being checked against.
-const sentenceAround = (cite) => (cite.closest("li, p")?.textContent || "").replace(/\s+/g, " ").trim();
+const sentenceAround = (cite) => {
+  const line = cite.closest("li, p")?.cloneNode(true);
+  line?.querySelectorAll(".cites").forEach((c) => c.remove());
+  return (line?.textContent || "").replace(/\s+([.,;])/g, "$1").replace(/\s+/g, " ").trim();
+};
 const hm = (x) => x.toTimeString().slice(0, 5);
 const when = (a, b) => {
   const d = new Date(a.replace(" ", "T"));
@@ -411,10 +415,9 @@ function renderRecord(r, claim) {
     : `<div class="rec-kind">${label} ${r.id}</div><h3>${esc(r.title || r.form || "Form")}</h3><div class="rec-meta">${r.person ? esc(r.person) + " · " : ""}created ${when(r.created_at)}</div>`;
   let body = claim ? `<div class="rec-claim"><span>The answer says</span>${esc(claim)}</div>` : "";
   if (isVisit) {
-    body += `<h4>Visit note</h4><blockquote>${esc(r.note || "No note")}</blockquote>`;
-    const acts = r.activities || [], odd = acts.filter((a) => a.status !== "Completed");
-    body += `<h4>Activities</h4>` + acts.map((a) => `<div class="rec-item"><strong>${esc(a.name)}</strong>${a.status !== "Completed" ? ` <span class="pill">${esc(a.status)}</span>` : ""}${a.comment ? `<p>${esc(a.comment)}</p>` : ""}</div>`).join("");
-    if (acts.length && !odd.length) body += `<p class="rec-meta">All ${acts.length} marked Completed. The comments above are the evidence, not the status.</p>`;
+    body += `<h4>Visit note, as recorded</h4><blockquote>${esc(r.note || "No note")}</blockquote>`;
+    const acts = r.activities || [];
+    body += `<h4>Activities</h4>` + acts.map((a) => `<p class="rec-act"><strong>${esc(a.name)}</strong>${a.status !== "Completed" ? ` <span class="pill">${esc(a.status)}</span>` : ""} ${esc(a.comment || "")}</p>`).join("");
   } else {
     body += (r.sections || []).map((sec) => `<h4>${esc(sec.section)}</h4>` + (sec.items || []).map((i) => `<div class="rec-item"><strong>${esc(i.question)}</strong><p>${esc(i.answer ?? "")}</p></div>`).join("")).join("");
   }
