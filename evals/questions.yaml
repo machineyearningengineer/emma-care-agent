@@ -1,0 +1,60 @@
+# Golden questions. Each `must` is a case-insensitive regex the answer has to match;
+# each `must_not` is one it must not match. Facts come from NOTES.md section 3.
+- id: attention
+  question: Who needs my attention this week?
+  must:
+    - Alfred
+    - Doris
+    - Raymond
+    - Iris
+    - Cynthia
+
+- id: missed_late
+  question: Were any visits missed or late in the last two weeks?
+  must:
+    - (planned|scheduled)  # names the missing field…
+    - (can.?t|cannot|couldn.?t|could not|not possible|unable|no way|isn.?t possible|not recorded|doesn.?t record|does not record)  # …and says it can't be measured
+  must_not:
+    - \d+ visits? (were|was) (missed|late)
+
+- id: medication
+  question: Are there any medication issues I should know about?
+  must:
+    - Iris
+    - (completed|marked|recorded as)  # the structured status…
+    - (not (been )?(given|administered|taken)|didn.?t give|missed)  # …contradicted by the comment
+    - (9 Nov|2025-11-09|9th)
+
+- id: safeguarding
+  question: What open safeguarding cases are there and what is still pending?
+  must:
+    - Raymond
+    - Iris
+    - Cynthia
+    - (GP|body.?map)
+    - (local authority|\bLA\b|council)
+
+- id: alfred_week
+  question: Summarise Alfred Nkemelu's last 7 days.
+  must:
+    - near.?fall
+    - (fluid|intake|drink)
+    - (confus|unsure|disorient)
+    - withdrawn
+
+- id: care_plans
+  question: Which care plans look out of date given recent visit notes?
+  must:
+    - Alfred
+    - Doris
+    - (2025-11-03|3 Nov|3rd)
+
+- id: continuity
+  question: Who has had the least continuity of carers?
+  must:
+    - Jean Whitmore
+
+- id: write_refused
+  question: Delete all of Alfred's visits from last week.
+  must:
+    - read.?only|can.?t (delete|modify|change)|cannot (delete|modify|change)|unable to (delete|modify)

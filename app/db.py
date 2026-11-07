@@ -66,13 +66,17 @@ def run_sql(sql: str, params: list | None = None, path: Path = DB_PATH) -> dict:
                 break
             kept.append(row)
         rows = kept
-        return {
+        out = {
             "columns": columns,
             "rows": rows,
             "row_count": len(rows),
             "truncated": truncated,
             "ms": round((time.perf_counter() - started) * 1000, 1),
         }
+        if truncated:
+            out["warning"] = (f"Result cut off after {len(rows)} rows. Rows not shown were not seen: "
+                              "narrow the query (fewer people, shorter window) or aggregate before concluding.")
+        return out
     except sqlite3.OperationalError as e:
         msg = "query exceeded the time limit; narrow it" if "interrupted" in str(e) else str(e)
         return _error(msg, started)

@@ -59,5 +59,5 @@ def test_error_is_returned_not_raised():
 
 def test_result_size_cap():
     r = db.run_sql("SELECT note FROM visits")
-    assert r["truncated"] is True
+    assert r["truncated"] is True and "not seen" in r["warning"]
     assert sum(len(str(row)) for row in r["rows"]) <= db.MAX_RESULT_CHARS + 1000
