@@ -119,6 +119,9 @@ function answerHtml(t) {
   let text = t.text;
   if (writing) {
     text = text.replace(/\((?:v|f)[a-z]*(?: [\d, ]*)?$/i, "");
+    // Hold back a tail that is about to change shape: a bare list marker, or the start of the "can't show" heading.
+    const tail = text.slice(text.lastIndexOf("\n") + 1).replace(/[#*\s]/g, "").toLowerCase();
+    if (/^(\d+[.)]?|[-•])?$/.test(tail) || (tail.length > 1 && "whaticouldn'tdetermine:".startsWith(tail.replace(/’/g, "'")))) text = text.slice(0, text.lastIndexOf("\n") + 1);
     if ((text.match(/\*\*/g) || []).length % 2) text += "**";
   }
   const html = markdown(text);
@@ -348,13 +351,13 @@ addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 const dlg = el("dialog", "record");
 document.body.append(dlg);
 dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
-async function openRecord(kind, id, back) {
+async function openRecord(kind, id, back, claim) {
   dlg.innerHTML = `<div class="rec-body"><p>Loading…</p></div>`;
   if (!dlg.open) dlg.showModal();
   try {
     const r = await fetch(`/api/records/${kind}/${id}`);
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-    dlg.innerHTML = renderRecord(await r.json());
+    dlg.innerHTML = renderRecord(await r.json(), claim);
   } catch (err) {
     dlg.innerHTML = `<div class="rec-body"><p>Couldn't load this record: ${esc(err.message)}</p><form method="dialog"><button class="link-btn">Close</button></form></div>`;
   }
@@ -371,7 +374,7 @@ function showCited(cited, answer) {
     const line = (at?.closest("li, p")?.textContent || "").replace(/\s+/g, " ").trim();
     const row = el("div", "rec-row");
     const open = el("button", "link-btn", `${kind === "visit" ? "Visit" : "Form"} ${id}`); open.type = "button";
-    open.addEventListener("click", () => openRecord(kind, id, () => showCited(cited, answer)));
+    open.addEventListener("click", () => openRecord(kind, id, () => showCited(cited, answer), line));
     row.append(open);
     if (at) {
       const jump = el("button", "link-btn jump-to", "Show in answer"); jump.type = "button";
@@ -389,16 +392,28 @@ function showCited(cited, answer) {
 }
 $("thread").addEventListener("click", (e) => {
   const c = e.target.closest(".cite");
-  if (c) openRecord(c.dataset.kind, c.dataset.id);
+  if (c) openRecord(c.dataset.kind, c.dataset.id, null, sentenceAround(c));
 });
-function renderRecord(r) {
-  const head = r.kind === "visit"
-    ? `<h3>Visit ${r.id} · ${esc(r.person || "")}</h3><div class="rec-meta">${esc(r.start_time)} to ${esc(r.end_time)} · carer ${esc(r.carer || "unknown")} · ${esc(r.status)}</div>`
-    : `<h3>${esc(r.form || "Form")} ${r.id}</h3><div class="rec-meta">${esc(r.title || "")} · created ${esc(r.created_at)}${r.person ? " · " + esc(r.person) : ""}</div>`;
-  let body = "";
-  if (r.kind === "visit") {
-    body += `<h4>Note</h4><p>${esc(r.note || "No note")}</p>`;
-    body += (r.activities || []).map((a) => `<div class="rec-item"><strong>${esc(a.name)}</strong> <span>${esc(a.status)}</span>${a.comment ? `<p>${esc(a.comment)}</p>` : ""}</div>`).join("");
+// The line of the answer a citation belongs to, so the record can say what it is being checked against.
+const sentenceAround = (cite) => (cite.closest("li, p")?.textContent || "").replace(/\s+/g, " ").trim();
+const hm = (x) => x.toTimeString().slice(0, 5);
+const when = (a, b) => {
+  const d = new Date(a.replace(" ", "T"));
+  const e = b && new Date(b.replace(" ", "T"));
+  return `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${hm(d)}${e ? "–" + hm(e) : ""}`;
+};
+function renderRecord(r, claim) {
+  const isVisit = r.kind === "visit";
+  const label = isVisit ? "Visit" : esc(r.form || "Form");
+  const head = isVisit
+    ? `<div class="rec-kind">Visit ${r.id}</div><h3>${esc(r.person || "")}</h3><div class="rec-meta">${when(r.start_time, r.end_time)} · carer ${esc(r.carer || "unknown")}${r.status === "Completed" ? "" : " · " + esc(r.status)}</div>`
+    : `<div class="rec-kind">${label} ${r.id}</div><h3>${esc(r.title || r.form || "Form")}</h3><div class="rec-meta">${r.person ? esc(r.person) + " · " : ""}created ${when(r.created_at)}</div>`;
+  let body = claim ? `<div class="rec-claim"><span>The answer says</span>${esc(claim)}</div>` : "";
+  if (isVisit) {
+    body += `<h4>Visit note</h4><blockquote>${esc(r.note || "No note")}</blockquote>`;
+    const acts = r.activities || [], odd = acts.filter((a) => a.status !== "Completed");
+    body += `<h4>Activities</h4>` + acts.map((a) => `<div class="rec-item"><strong>${esc(a.name)}</strong>${a.status !== "Completed" ? ` <span class="pill">${esc(a.status)}</span>` : ""}${a.comment ? `<p>${esc(a.comment)}</p>` : ""}</div>`).join("");
+    if (acts.length && !odd.length) body += `<p class="rec-meta">All ${acts.length} marked Completed. The comments above are the evidence, not the status.</p>`;
   } else {
     body += (r.sections || []).map((sec) => `<h4>${esc(sec.section)}</h4>` + (sec.items || []).map((i) => `<div class="rec-item"><strong>${esc(i.question)}</strong><p>${esc(i.answer ?? "")}</p></div>`).join("")).join("");
   }
