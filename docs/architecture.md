@@ -291,7 +291,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16, 17, 19.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16, 17, 19, 20.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -674,6 +674,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: Records read through the agent's connection, so each citation lookup built the search index it never uses. The question limit was in the HTML, the config and a JavaScript default; the page now takes it from the server. A refusal and its follow-up chips showed an empty 'N queries' box, now hidden.
 - Turned down: Splitting ask_stream into smaller functions: it is long but reads in one straight line, and the pieces would share state through arguments. A hover preview on names: a name appears many times in an answer, and the click menu already offers the four questions. Removing comments and tests as the skill offers: not asked for, and the tests are the contract checks.
 - Breaks next: The page keeps its own copy of the citation pattern because a browser cannot import Python. The contract test is what stops it drifting.
+
+### Step 20, 21:40 on 7 Nov: Questions queue while one is running
+
+- Before: pressing Enter while an answer was writing stopped it and threw the typed question away, and tapping a suggestion started a second stream next to the first
+- After: a question asked while one runs waits in a visible queue of up to 3 and runs when the answer finishes; the button says Queue when something is typed and Stop when the box is empty, and Stop also clears the queue
+- Why: A manager thinks of the next question while reading the answer. Losing it, or cancelling the answer to ask it, are both surprises, and two streams at once broke the page's single idea of what is running.
+- Found: Each new question is added at the end of the thread. It never goes in between, because an answer depends on the ones above it (they are sent back as history), and the queue keeps that order.
+- Turned down: Steering the running answer with a new message: the agent loop has one question per run, and changing it mid-run would make the cost and the answer hard to explain. Cancelling the running answer for the new one: the manager did not ask for that.
+- Breaks next: A queued question is lost if the page is reloaded, like everything else on the page until history is saved.
 
 ## What comes next
 
