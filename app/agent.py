@@ -205,7 +205,8 @@ def ask(question: str, history: list[dict] | None = None, model: str = MODEL, cl
 
 FOLLOW_UP_PROMPT = """\
 A care manager asked a question about their home-care service and got the answer below.
-Suggest up to 3 short follow-up questions they would plausibly ask next. Each must be answerable
+Suggest up to 3 follow-up questions they would plausibly ask next. Each is one sentence under 90
+characters, about one person or one topic. Each must be answerable
 from visit notes, care plans, risk assessments or safeguarding forms, and name the person when
 relevant, using real names from the answer and never placeholders. Don't ask again what the
 answer says the records can't show. Return JSON: {"questions": ["...", "..."]}"""
