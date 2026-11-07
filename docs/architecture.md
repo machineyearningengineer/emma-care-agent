@@ -26,7 +26,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -42,7 +42,7 @@ Layer: Server
 
 ### FastAPI server
 
-Layer: Server. Built in step 6; changed in steps 6, 7, 9, 10.
+Layer: Server. Built in step 6; changed in steps 6, 7, 9, 10, 16.
 
 - What it does: One streaming endpoint, POST /api/ask/stream, plus record lookups and the page. Every request gets an id that appears on every event and log line.
 - Always true: At most 8 live questions run at once. The next one is told to retry, not queued.
@@ -188,14 +188,16 @@ Layer: Checks
 
 Layer: Checks. Built in step 5; changed in steps 5, 11, 14, 15.
 
-- What it does: Eight golden questions with required facts, one of them a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
-- Always true: A prompt change is measured against the same questions each time.
+- What it does: Eight golden questions with required facts, each also asked two or three other ways and repeated. One is a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
+- Always true: A prompt change is measured against the same questions, asked several ways, more than once.
+- Limits: A full run on gpt-5.5 is about 300k tokens; with phrasing variants about 950k
 - Meets: nfr-drift (Cannot drift); nfr-scale (Scales by narrowing)
 - Trade-offs:
-  - Checks look for facts in the answer. They are cheap and repeatable, and they do not judge reasoning.
-  - We turned down scoring with another model, which would share the same blind spots.
-- Breaks first: One person wrote both the answers and the checks, so blind spots are in both.
-- At scale: Labelled data from someone who did not write the agent.
+  - Checks look for facts in the answer. They are cheap and repeatable, and they do not judge reasoning or ranking.
+  - A single run hid a question that passed 2 times in 5, so any prompt change is repeated before it is trusted.
+  - We turned down scoring with another model, which adds seconds and shares the same blind spots.
+- Breaks first: One person wrote the answers, the checks and the rephrasings, so blind spots are in all three.
+- At scale: Labelled data and phrasings from someone who did not write the agent, and a sample of real questions.
 - Next steps touching it: n1 Measure recall with varied text
 
 ## Connections
@@ -371,6 +373,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: 20 of 21 passed on the first run of the variants. The failure was "Do any care plans need updating?", which named the right people but never said the plans date from 3 Nov or have no review date. A rule to give the plan's date fixed it, and 9 of 9 passed over three repeats.
 - Turned down: A model that writes the paraphrases: it would drift toward how the model already reads questions, which is the blind spot.
 - Breaks next: Eleven extra phrasings is a small sample. The check is a list of required facts, so it cannot see a wrong ranking or a missing nuance.
+
+### Step 16, 00:10 on 7 Nov: Names in the answer open a follow-up
+
+- Before: people's names were plain text in the answer
+- After: every name from the roster is a button that puts "How has Alfred Nkemelu been this week?" in the composer, without sending it
+- Why: A manager acts on people, so the next question is usually about one. The tap saves typing and uses wording the evals already check.
+- Found: The page decides who is a person from the roster the server sends, not from how the model wrote the answer, so bold, plain and possessive uses all behave the same. Only full names match; a bare "Alfred" stays plain because the rule must never guess.
+- Turned down: Matching first names: it breaks the day two people share one. Sending the question on tap: the manager should choose what to ask.
+- Breaks next: A name the model misspells is not linked, and nobody notices. The roster is the one list, so a new person needs no page change.
 
 ## What comes next
 

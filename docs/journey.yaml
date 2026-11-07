@@ -200,15 +200,19 @@ nodes:
   - id: evals
     layer: Checks
     label: Evals
-    what: Eight golden questions with required facts, one of them a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
-    invariant: A prompt change is measured against the same questions each time.
+    what: Eight golden questions with required facts, each also asked two or three other ways and repeated. One is a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
+    invariant: A prompt change is measured against the same questions, asked several ways, more than once.
+    limits:
+      - "A full run on gpt-5.5 is about 300k tokens; with phrasing variants about 950k"
     meets: [nfr-drift, nfr-scale]
     primary: nfr
     tradeoffs:
-      - Checks look for facts in the answer. They are cheap and repeatable, and they do not judge reasoning.
-      - We turned down scoring with another model, which would share the same blind spots.
-    breaks: One person wrote both the answers and the checks, so blind spots are in both.
-    scale: Labelled data from someone who did not write the agent.
+      - Checks look for facts in the answer. They are cheap and repeatable, and they do not judge reasoning or ranking.
+      - A single run hid a question that passed 2 times in 5, so any prompt change is repeated before it is trusted.
+      - We turned down scoring with another model, which adds seconds and shares the same blind spots.
+    breaks: One person wrote the answers, the checks and the rephrasings, so blind spots are in all three.
+    scale: Labelled data and phrasings from someone who did not write the agent, and a sample of real questions.
+
 
 edges:
   - {from: page, to: server, label: question (NDJSON stream)}
@@ -426,6 +430,18 @@ steps:
     found: 20 of 21 passed on the first run of the variants. The failure was "Do any care plans need updating?", which named the right people but never said the plans date from 3 Nov or have no review date. A rule to give the plan's date fixed it, and 9 of 9 passed over three repeats.
     rejected: ["A model that writes the paraphrases: it would drift toward how the model already reads questions, which is the blind spot."]
     breaks: Eleven extra phrasings is a small sample. The check is a list of required facts, so it cannot see a wrong ranking or a missing nuance.
+
+  - id: 16
+    when: "00:10"
+    title: Names in the answer open a follow-up
+    commits: [ab7beab]
+    nodes: [page, server]
+    A: people's names were plain text in the answer
+    B: every name from the roster is a button that puts "How has Alfred Nkemelu been this week?" in the composer, without sending it
+    why: A manager acts on people, so the next question is usually about one. The tap saves typing and uses wording the evals already check.
+    found: The page decides who is a person from the roster the server sends, not from how the model wrote the answer, so bold, plain and possessive uses all behave the same. Only full names match; a bare "Alfred" stays plain because the rule must never guess.
+    rejected: ["Matching first names: it breaks the day two people share one.", "Sending the question on tap: the manager should choose what to ask."]
+    breaks: A name the model misspells is not linked, and nobody notices. The roster is the one list, so a new person needs no page change.
 
 next:
   - id: n1

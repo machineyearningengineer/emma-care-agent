@@ -139,6 +139,12 @@ Replay mode records real answers so the app runs with no key.
 **Turned down:** a model writing the paraphrases, because it would drift toward how the model already reads questions.
 **Caveat:** eleven extra phrasings is a small sample, and the check cannot see a wrong ranking.
 
+### 16. Names in the answer open a follow-up (00:10)
+**A → B:** people's names were plain text → every name from the roster is a button that puts "How has Alfred Nkemelu been this week?" in the composer without sending it.
+**Found:** the page takes "who is a person" from the roster the server sends, not from how the model formatted the answer, so bold, plain and possessive uses behave the same. Only full names match, because a bare "Alfred" would break the day two people share a first name.
+**Turned down:** matching first names, and sending on tap, because the manager chooses what to ask.
+**Caveat:** a misspelt name is not linked and nobody is told.
+
 ## What Anthropic's memory write-up changes
 
 [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)
@@ -161,6 +167,25 @@ So pages must carry provenance and a date, and the agent must treat them as lead
 
 Not built, because at 10 people reading the raw records is cheaper and safer than maintaining
 pages. The scale check above is the trigger: when it stops finding everyone, build the pages.
+
+## How we know it works
+
+Six checks, each there because it caught something the one before could not.
+
+| Check | What it catches | Command | Example catch |
+|---|---|---|---|
+| Unit tests | Guardrails, the stream protocol, the prompt and page agreeing on citations, stale docs | `uv run pytest` | A journey page out of date with the code |
+| Golden questions | An answer missing a fact it must contain | `uv run python evals/run.py` | The model clearing a person from a truncated result |
+| Repeats | An answer that is right only some of the time | `--repeat 5 --only <id>` | Medication passed 2 of 5 while one run said 8 of 8 |
+| Phrasing variants | A question read differently when worded differently | `--variants` | "Do any care plans need updating?" never gave the plan's date |
+| Scale check | Recall dropping as the data grows | `evals/scale.py` | 5 of 5 real concerns found among about 200 people |
+| Live walk | What the numbers cannot see: ranking, length, UX | by hand or a verifier agent | Alfred and Doris ranked last despite getting worse |
+
+**How a failure becomes a rule.** A failure is red. Read the answer, find what it got wrong, make the smallest prompt or schema change, and run the same question until it is green, repeated. Keep the case. The medication check required the 9 Nov date only after a miss, and the care plan check required a date only after a variant missed.
+
+**Why the checks are lists of facts, not a model's opinion.** A model grading another model tends to share its blind spots, and it adds 3 to 10 seconds per question. The cost is that a check cannot see a wrong ranking or a missing nuance, which the live walk covers.
+
+**What this does not cover yet.** Real questions from real managers, and notes written by someone other than the person who built the agent. Both are in the next list.
 
 ## Next, in the order we'd do it
 
@@ -253,4 +278,8 @@ guardrails change shape: the SQLite authorizer becomes a read-only role plus
 
 - Anthropic, [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory). The layers, the one-writer-per-page rule, and the wiki-plus-search figures (61% against 53%, and 87% against 73% on multi-document questions) are theirs, from their own tests, not ours.
 - SQLite [FTS5](https://www.sqlite.org/fts5.html) and [sqlite-vec](https://github.com/asg017/sqlite-vec) for the search and vector options.
+- Yao, Shinn, Razavi, Narasimhan, [τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045) (2024). We take `pass^k`: reliability over repeated trials of the same task, which is why we repeat.
+- Yao et al., [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629) (2022). The reason, act, observe loop this agent runs.
+- Shinn et al., [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366) (2023). An agent that critiques its own attempts. We turned it down: it adds a round trip and shares the agent's blind spots.
+- Zheng et al., [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685) (2023). Names position, verbosity and self-enhancement bias in model judges, one reason we check for facts instead.
 - Everything else here is measured on this repo: `evals/run.py`, `evals/scale.py`, and the commit messages in `git log`.

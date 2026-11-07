@@ -20,7 +20,8 @@ def overview() -> dict:
     con = connect()
     try:
         org = con.execute("SELECT name FROM org_units ORDER BY id LIMIT 1").fetchone()
-        names = [r[0] for r in con.execute("SELECT name FROM service_users WHERE status = 'Active' ORDER BY name")]
+        rows = con.execute("SELECT name FROM service_users WHERE status = 'Active' ORDER BY name")
+        names = [r[0] for r in rows]
         first, last = con.execute("SELECT min(start_time), max(start_time) FROM visits").fetchone()
     finally:
         con.close()

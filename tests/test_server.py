@@ -66,7 +66,8 @@ def test_meta_is_derived_from_the_data():
     r = TestClient(server.app).get("/api/meta").json()
     assert r["org"] == "Brookmere Care Team" and r["people"] == 10 and r["to"] == "2025-11-16 17:30:00"
     assert r["limits"] == {"question_chars": 2000, "history_messages": 6}
-    assert len(r["names"]) == r["people"] and "Alfred Nkemelu" in r["names"]  # the page links these, and only these
+    # the page links exactly these names
+    assert len(r["names"]) == r["people"] and "Alfred Nkemelu" in r["names"]
 
 
 def test_citation_records():
