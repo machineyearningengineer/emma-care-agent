@@ -13,17 +13,17 @@ an answer that sounds right and is wrong.
 
 ## 2. The demo (4 minutes)
 
-1. **Ask "Who needs my attention this week?"** Point at the live queries while it works, then the
+1. **Happy path. Ask "Who needs my attention this week?"** Point at the live queries while it works, then the
    ranked list, the date range it states, and the "What the records can't show" box.
 2. **Tap a citation.** The record opens with the claim being checked above the carer's own note.
    Tap "N records cited" for the list grouped by record.
-3. **Tap a person's name.** Four fixed follow-ups appear. Pick "What changed ... compared with the week
+3. **Medium path. Tap a person's name.** Four fixed follow-ups appear. Pick "What changed ... compared with the week
    before". It fills the composer; you send it.
-4. **Ask "Were any visits missed or late?"** It says the data cannot tell: there are no planned times.
+4. **Honest negative. Ask "Were any visits missed or late?"** It says the data cannot tell: there are no planned times.
    Saying so is the correct answer.
-5. **Ask "Are there any medication issues?"** Iris's visit is marked Completed while the note says the
+5. **Trap. Ask "Are there any medication issues?"** Iris's visit is marked Completed while the note says the
    family had not given the medication. A report built on status would call it done.
-6. **Ask it to delete something.** It refuses, and the database would refuse anyway (read-only
+6. **Refusal. Ask it to delete something.** It refuses, and the database would refuse anyway (read-only
    connection, authorizer).
 
 ## 3. How it works (3 minutes)

@@ -60,8 +60,7 @@ fetch("/api/meta").then((r) => r.json()).then((m) => {
   limits = m.limits; q.maxLength = limits.question_chars;
   if (m.names?.length) namesRe = new RegExp(`(?<![\\w])(${m.names.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w])`, "g");
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
-  const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
-  $("asof").textContent = ` · Today is ${day(m.to)} · records from ${short.format(new Date(m.from.replace(" ", "T")))}`;
+  $("asof").textContent = ` · Today is ${day(m.to)}`;
   for (const q of m.examples || []) {
     const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
     b.addEventListener("click", () => submit(q));
