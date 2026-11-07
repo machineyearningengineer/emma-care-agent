@@ -126,7 +126,7 @@ Results on 7 Nov 2026:
   dated evidence against each plan, but never said the plans themselves are undated since
   3 Nov, so the check fails. It writes more thorough answers but takes 30–60 s on the
   broad questions, against 10–20 s for mini.
-- About 30k tokens per question on mini. `pytest`: 13 passed.
+- About 30k tokens per question on mini. `pytest`: 15 passed.
 
 What the first eval run caught, and the general fixes it led to:
 - The model read only the top level of `form_data` and decided the safeguarding forms
