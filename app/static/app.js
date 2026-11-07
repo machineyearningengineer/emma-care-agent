@@ -4,7 +4,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;"
 const fmtInt = (n) => Number(n).toLocaleString();
 const history = [];   // {role, content} sent back for follow-ups
 const turns = [];     // {node, question, answer}
-let controller = null;
+let controller = null, seq = 0;
 
 /* ---------- Markdown (escape first, so model text can't inject HTML) ---------- */
 const CITE = /\((?:visits?|forms?)\s[^()]{1,80}\)/gi;
@@ -94,7 +94,7 @@ async function submit(question) {
   follow = true;
 
   const node = el("article", "turn");
-  node.id = `t${turns.length + 1}`;
+  node.id = `t${++seq}`;
   node.append(el("h2", null, esc(question)));
   const activity = el("details", "activity"); activity.open = true;
   const summary = el("summary", null, `<span class="label">Starting…</span><span class="chev" aria-hidden="true">›</span>`);
@@ -166,10 +166,12 @@ async function submit(question) {
     if (current && !current.dataset.done) finishStep(current, { error: stopped ? "stopped" : "no result" });
     const box = el("div", "error");
     box.innerHTML = `<strong>${stopped ? "Stopped" : "This answer failed"}</strong>
-      <span>${esc(stopped ? "You stopped this answer. Nothing was saved." : err.message)}</span>
+      <span>${esc(stopped ? "You stopped this answer. Nothing was saved." : err instanceof TypeError ? "Couldn't reach the server. Check that it is still running, then ask again." : err.message)}</span>
       ${requestId ? `<small>Request ${esc(requestId)}</small>` : ""}`;
     const retry = el("button", "link-btn", "Ask again"); retry.type = "button";
-    retry.addEventListener("click", () => submit(question));
+    retry.addEventListener("click", () => {  // replace the failed turn rather than stacking another under it
+      node.remove(); turns.splice(turns.indexOf(turn), 1); renderNav(); submit(question);
+    });
     box.append(retry);
     node.append(box);
     turn.answer = stopped ? "Stopped." : "Failed."; renderNav();
@@ -275,8 +277,7 @@ addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
 /* ---------- Follow-up suggestions: the next likely question, shown as the placeholder and chips ---------- */
 function suggest(list) {
-  q.placeholder = list[0] || "Ask a question";
-  document.querySelectorAll(".follow").forEach((n) => n.remove());
+    document.querySelectorAll(".follow").forEach((n) => n.remove());
   if (!list.length) return;
   const box = el("div", "follow");
   for (const text of list) {

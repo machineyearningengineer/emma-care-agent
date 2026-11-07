@@ -1,3 +1,6 @@
+@font-face { font-family: "General Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("/static/fonts/GeneralSans-400.woff2") format("woff2"); }
+@font-face { font-family: "General Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("/static/fonts/GeneralSans-500.woff2") format("woff2"); }
+@font-face { font-family: "General Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("/static/fonts/GeneralSans-600.woff2") format("woff2"); }
 /* Layout: one reading column; a turn minimap in the left margin on wide screens, a bottom sheet on phones. */
 :root {
   color-scheme: light dark;
@@ -30,9 +33,9 @@
   --danger:       light-dark(oklch(50% 0.160 28),  oklch(78% 0.120 28));
   --danger-wash:  light-dark(oklch(96% 0.025 28),  oklch(27% 0.040 28));
 
-  --font-ui: "General Sans", "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-ui: "General Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-read: var(--font-ui);
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
   --step--1: 0.8125rem; --step-0: 1rem; --step-1: 1.0625rem; --step-2: 1.25rem; --step-3: 1.5rem;
   --radius: 10px; --radius-sm: 6px;
