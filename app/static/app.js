@@ -96,6 +96,8 @@ function setBusy(busy) {
   b.setAttribute("aria-label", busy ? "Stop" : "Ask");
   b.classList.toggle("stop", busy);
   b.disabled = !busy && !q.value.trim();
+  $("jump").classList.toggle("busy", busy);  // a pulsing dot on the arrow: the answer is still being written below
+  $("jump").title = busy ? "Scroll to latest (still working)" : "Scroll to latest";
 }
 
 /* ---------- One question: its state is data; the page is derived from it ----------
