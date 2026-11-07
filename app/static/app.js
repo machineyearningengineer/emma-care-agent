@@ -181,6 +181,7 @@ function render(t) {
   const label = { starting: "Starting…", querying: `Running query ${n}`, writing: queriesOf(n),
     done: `${queriesOf(n)} · ${t.done?.seconds}s`, failed: `${queriesOf(n)} · failed`, stopped: "Stopped" }[t.state];
   t.ui.label.textContent = label;
+  t.ui.activity.hidden = n === 0 && !running && t.state !== "stopped";  // nothing ran, so nothing to expand
   if (t.ui.shown !== t.state) { t.ui.activity.open = running; t.ui.shown = t.state; }  // open while working, fold when writing starts
   t.ui.status.hidden = !running;
   if (running) {
