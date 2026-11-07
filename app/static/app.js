@@ -60,11 +60,23 @@ fetch("/api/meta").then((r) => r.json()).then((m) => {
   }
 }).catch(() => { $("facts").textContent = "Couldn't reach the server."; });
 
-/* ---------- Scrolling: follow new text only if the reader is already at the bottom ---------- */
-const nearBottom = () => innerHeight + scrollY >= document.body.scrollHeight - 160;
-let follow = true;
-addEventListener("scroll", () => { follow = nearBottom(); $("jump").classList.toggle("show", !follow && !!controller); }, { passive: true });
-const keepUp = () => { if (follow) scrollTo({ top: document.body.scrollHeight }); };
+/* ---------- Scrolling: follow new text until the reader scrolls up, and again once they're back at the bottom ---------- */
+const atBottom = (slack) => innerHeight + scrollY >= document.body.scrollHeight - slack;
+let follow = true, lastY = 0;
+const unfollow = () => { follow = false; };
+addEventListener("wheel", (e) => { if (e.deltaY < 0) unfollow(); }, { passive: true });
+addEventListener("touchmove", unfollow, { passive: true });
+addEventListener("keydown", (e) => { if (["ArrowUp", "PageUp", "Home"].includes(e.key) && e.target === document.body) unfollow(); });
+addEventListener("scroll", () => {
+  if (scrollY < lastY - 1) unfollow();            // we only ever scroll down by ourselves, so up means the reader
+  else if (atBottom(24)) follow = true;
+  lastY = scrollY;
+  $("jump").classList.toggle("show", !atBottom(240));
+}, { passive: true });
+const keepUp = () => {
+  if (follow) scrollTo({ top: document.body.scrollHeight });
+  $("jump").classList.toggle("show", !atBottom(240));  // the page can grow under a reader who isn't scrolling
+};
 $("jump").addEventListener("click", () => { follow = true; scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); });
 
 /* ---------- Composer ---------- */
@@ -258,7 +270,7 @@ async function submit(question) {
     }
   } finally {
     clearInterval(tick); cancelAnimationFrame(raf); paint(); renderNav();
-    controller = null; setBusy(false); $("jump").classList.remove("show");
+    controller = null; setBusy(false);
     if (window.matchMedia("(pointer: fine)").matches) q.focus();
   }
 }

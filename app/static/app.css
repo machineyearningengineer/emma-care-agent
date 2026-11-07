@@ -155,9 +155,10 @@ main {
 .unknowns > .label { display: block; font: 650 var(--step--1) var(--font-ui); color: var(--caution); margin-bottom: 4px; }
 .unknowns > :last-child { margin-bottom: 0; }
 .caret {
-  display: inline-block; width: 2px; height: 1.1em; vertical-align: -0.2em; margin-left: 1px;
-  background: var(--primary); border-radius: 1px;
+  display: inline-block; width: 0.5em; height: 1.05em; vertical-align: -0.15em; margin-left: 2px;
+  background: var(--primary); border-radius: 2px; animation: breathe 1.2s ease-in-out infinite alternate;
 }
+@keyframes breathe { to { opacity: .45; } }
 .status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: var(--step--1); margin-top: 14px; font-variant-numeric: tabular-nums; }
 .status .spin { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); animation: pulse .9s ease-in-out infinite alternate; }
 .status .txt { background: linear-gradient(90deg, var(--text-3) 30%, var(--primary) 50%, var(--text-3) 70%) 0 0 / 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
@@ -213,7 +214,7 @@ textarea::placeholder { color: var(--text-3); }
   position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom, 0px)); z-index: 21;
   transform: translate(-50%, 8px); opacity: 0; pointer-events: none;
   border: 1px solid var(--line); background: var(--surface); box-shadow: var(--shadow); border-radius: 999px;
-  padding: 6px 14px; font-size: var(--step--1); font-weight: 550; color: var(--text-2);
+  display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--text-3);
   transition: opacity .2s var(--ease), transform .2s var(--ease);
 }
 .jump.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
@@ -309,3 +310,7 @@ dialog.record::backdrop { background: rgb(0 0 0 / .4); }
 .rec-chip { font: 550 .8em var(--font-ui); font-variant-numeric: tabular-nums; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--primary); cursor: pointer; }
 .rec-chip:hover { background: var(--primary-wash); }
 .rec-act { margin: 6px 0; color: var(--text-2); } .rec-act strong { color: var(--text); margin-right: 4px; }
+.follow:not([hidden]) { animation: enter .35s var(--ease) both; }
+.follow .suggestion, .follow button { animation: enter .35s var(--ease) both; }
+.follow > :nth-child(2) { animation-delay: .05s; } .follow > :nth-child(3) { animation-delay: .1s; } .follow > :nth-child(4) { animation-delay: .15s; }
+@media (prefers-reduced-motion: reduce) { .follow:not([hidden]), .follow .suggestion, .follow button { animation: none; } }
