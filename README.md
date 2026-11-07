@@ -1,5 +1,7 @@
 # Care data agent
 
+New here? Read [START_HERE.md](START_HERE.md): one reading order, the flow of a question, and where everything is.
+
 Ask questions in plain English about a home-care provider's visits and forms. The agent
 writes its own SQL against a read-only database, reads the notes it narrowed down, and
 says what the data can't tell you.
