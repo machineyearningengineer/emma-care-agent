@@ -117,6 +117,11 @@ def problems(data: dict) -> list[str]:
             for n in t.get("numbers", [])
             if not n.get("why")
         ]
+    step_ids = [str(x["id"]) for x in data["steps"]]
+    for d in data["decisions"]:
+        out += [f"decision {d['id']} has no {k}" for k in ("q", "a", "evidence", "tradeoff") if not d.get(k)]
+        if str(d.get("step")) not in step_ids:
+            out.append(f"decision {d['id']} names unknown step {d.get('step')}")
     steps = data["story"]["steps"]
     if not 7 <= len(steps) <= 9:
         out.append(f"story has {len(steps)} steps, want 7 to 9")
@@ -179,6 +184,18 @@ def markdown(data: dict) -> tuple[str, dict[str, str]]:
     for r in data["requirements"]:
         by = ", ".join(n["label"] for n in data["nodes"] if r["id"] in n["meets"])
         out.append(f"| {r['id']} | {'FR' if r['kind'] == 'functional' else 'NFR'} | {r['text']} | {by} |")
+    out += ["", "## Decisions and lessons, at a glance", ""]
+    for d in data["decisions"]:
+        out += [
+            f"### {d['q']}",
+            "",
+            d["a"],
+            "",
+            f"- Evidence: {d['evidence']}",
+            f"- Trade-off: {d['tradeoff']}",
+            f"- Built in step {d['step']}",
+            "",
+        ]
     out += [
         "",
         "## Five ways to think about it",

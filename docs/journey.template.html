@@ -155,7 +155,11 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
     <div class="grp"><button class="btn" id="copy">Copy as Markdown</button><span id="status" class="note" style="margin:0" role="status"></span></div>
   </div>
 
-  <h2 style="margin-top:0">Five ways to think about it</h2>
+  <h2 style="margin-top:0">The short version</h2>
+  <p class="note">Every decision and lesson in one place: the answer, the evidence, and what it costs. Tap one to open it.</p>
+  <div class="think" id="decisions"></div>
+
+  <h2>Five ways to think about it</h2>
   <p class="note">The model is one layer of five. Open each to see what it is, what we did, how it fails, how we check it, and what is still missing.</p>
   <div class="think" id="think"></div>
   <ul class="note" id="threads"></ul>
@@ -420,6 +424,12 @@ async function copyMd() {
 
 /* Static parts and events. */
 $("title").textContent = D.title; $("sub").textContent = D.subtitle; $("range").max = LAST;
+D.decisions.forEach((x) => {
+  const d = h("details"), sm = h("summary", null, x.q); sm.append(h("span", null, x.a)); d.append(sm);
+  d.append(h("div", "k", "Evidence"), h("p", null, x.evidence), h("div", "k", "Trade-off"), h("p", null, x.tradeoff));
+  const b = h("button", "btn", "Built in step " + x.step); b.type = "button"; b.addEventListener("click", () => { go({ step: +x.step }); $("tl").scrollIntoView({ behavior: "smooth", block: "start" }); });
+  d.append(b); $("decisions").append(d);
+});
 D.thinking.forEach((t, i) => {
   const d = h("details"); d.open = i === 0;
   const sm = h("summary", null, `${i + 1}. ${t.name}`); sm.append(h("span", null, t.question)); d.append(sm, h("p", null, t.plain));

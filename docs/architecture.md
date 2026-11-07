@@ -20,6 +20,113 @@ A care manager asks a question in plain language. An agent answers it by queryin
 | nfr-scale | NFR | More data is handled by narrowing with SQL, not by making the prompt longer. | Schema and glossary, Views and full-text index, Evals |
 | nfr-drift | NFR | Typed events, derived numbers and tests keep the code, the prompt and these docs agreeing. | Event protocol, Schema and glossary, Evals |
 
+## Decisions and lessons, at a glance
+
+### What is the agent, and why not a library of ready-made queries?
+
+A model, one read-only tool (run_sql) and a loop. The schema, roster and glossary are derived from the data and put in the prompt.
+
+- Evidence: Every golden question and rephrasing passes (42 of 42 on gpt-5.5). A ready-made query per question would hide the schema and need a new function for each new question.
+- Trade-off: The model can write a wasteful query. Caps and the prompt keep that cheap instead of a fixed set of queries preventing it.
+- Built in step 4
+
+### Is the model good enough at SQL?
+
+Yes. Its queries were sound. The weakness was reading too wide, and the 30k result cap fixed that.
+
+- Evidence: The medication question read 145k characters and 114k prompt tokens; at 30k it read about 80k and 75k, ran in 11s instead of 15s, and still found visit 293 and form 22. Tokens fell about 45% with no lost facts.
+- Trade-off: A cap can hide a relevant row in a very wide query. The result carries a truncation flag and the prompt says only clear what you read.
+- Built in step 18
+
+### Does the SQL need a planning step?
+
+No. The first query is the plan, and the roster in the prompt removes the usual counting query.
+
+- Evidence: Simple questions take 1 query and about 3 seconds; broad ones take 4 to 11 queries and 12 to 15 seconds.
+- Trade-off: A planner would cost another model call (3 to 10 seconds) and share the model's blind spots. Revisit if recall fails on varied real notes.
+- Built in step 14
+
+### Should the model think before answering?
+
+No. Reasoning is off.
+
+- Evidence: A broad question took 73 seconds and 292k tokens with it on; off it takes about 15 seconds and 60% fewer tokens, with the same eval results.
+- Trade-off: A harder multi-step question might do better with thinking. The evals would show it, so turn it back on only for a failing case.
+- Built in step 12
+
+### Why read the notes and not the status fields?
+
+Every one of the 336 visits has the status Completed, so status says nothing. The truth is in the free text.
+
+- Evidence: Visit 293 is marked Completed while its comment says the family had not given the medication. A report built on status would count it as done.
+- Trade-off: It relies on the model reading text, so recall on messier real notes is the first thing to break. Search and embeddings are the next step.
+- Built in step 0
+
+### Why does it sometimes say the data cannot tell?
+
+Visits have no planned time, so late and missed cannot be measured. Saying so is the right answer.
+
+- Evidence: Checked directly: all 336 visits are Completed, all exactly 45 minutes, none missing an end time, and no note or form mentions a missed or late visit.
+- Trade-off: A manager may find the answer unhelpful. A wrong guess from gaps in the data would be worse.
+- Built in step 2
+
+### What happens when a result is cut?
+
+The result carries a flag and a loud warning, and the prompt says only clear a person you actually read.
+
+- Evidence: Before this, a truncated result let the model clear a person it had not read.
+- Trade-off: More text in the prompt on every cut, and the model must narrow and re-run.
+- Built in step 3
+
+### How do we know an eval pass means anything?
+
+Repeat it. One passing run proves little for a model that varies.
+
+- Evidence: Medication passed 8 of 8 once, then 2 of 5 when repeated, and 5 of 5 after a window rule. A rephrased care-plan question failed until a plan-date rule was added.
+- Trade-off: A full run with variants and repeats uses about 1.8M tokens. Run it when a prompt, cap or model changes, not on every commit.
+- Built in step 14
+
+### How do we make a wrong citation impossible to ship?
+
+One grammar, a test and an eval check. A citation the page cannot link fails the build.
+
+- Evidence: Evals caught '(visit 327, form 23)' and then '(visits 192-210)', both of which showed as plain text. Each became a prompt rule and a permanent check.
+- Trade-off: The model is held to a strict form, so the prompt carries a few rules about it.
+- Built in step 8
+
+### How does the page know which words are people?
+
+The server sends the roster of active people, and the page links any match, however the model formatted it.
+
+- Evidence: Bold, plain and possessive uses all link. A new person needs no page change.
+- Trade-off: A misspelled name stays plain text and nobody is told. Above 30 people the roster switches off in the prompt and the model queries instead.
+- Built in step 16
+
+### What does the app treat as today?
+
+The latest visit in the data. The header says so: 'Today is 16 Nov 2025'.
+
+- Evidence: 'This week' and 'recent' are resolved against it. Reading the wall clock would give an empty week.
+- Trade-off: With live data this becomes the real date; for this fixed data it is a convention the page has to state.
+- Built in step 2
+
+### Why not de-duplicate repeated comments in a view?
+
+Tried and dropped. It removed almost nothing.
+
+- Evidence: After normalising, 572 of 1,135 comments were distinct, but the model's reads did not shrink. The cap did.
+- Trade-off: Repeated carer comments still cost tokens inside the cap.
+- Built in step 18
+
+### What did we leave out on purpose?
+
+Sign-in, saved history, embeddings, a planner, per-person pages and hover previews on names.
+
+- Evidence: Each has a trigger in 'What breaks next'. Names open a short menu on click, because a name appears many times in one answer and a hover on each would be noise.
+- Trade-off: A manager cannot share a link to an answer, and recall is untested on real, varied notes.
+- Built in step 17
+
+
 ## Five ways to think about it
 
 Model quality is one of five. Each fails differently.
