@@ -15,6 +15,19 @@ To ask anything else, copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
 [docs/journey.html](docs/journey.html) is the full story: every decision, its evidence and trade-off.
 [DEMO.md](DEMO.md) is a ten-minute talk track.
 
+## Watch the walkthrough (11 minutes)
+
+[![Watch the walkthrough: a citation opening its source record](docs/media/film-poster.png)](docs/media/flow.mp4)
+
+A narrated, animated walkthrough. [Play it](docs/media/flow.mp4), or jump to a part:
+
+| Time | Part |
+|---|---|
+| 0:33 | **1. One question, end to end.** The page, the server, the prompt, the one tool, the database, and how a record's ID becomes a button. |
+| 3:14 | **2. The limits, and why.** What each cap protects, and what happens when it trips. |
+| 5:34 | **3. Checked and fragile.** What the tests and evals catch, and what still needs a human. |
+| 6:16 | **4. What breaks first.** Recall, database size, many users, durability, long contexts, sign-in, and the fix for each. |
+
 ## What it does
 
 | | |
@@ -32,7 +45,7 @@ The same agent runs in the terminal: `uv run python -m app.agent "Who needs my a
 
 ![One question, end to end](docs/media/flow.gif)
 
-[Step through it yourself](docs/flow.html) (open the file in a browser; each step also says what breaks first as data or people grow), or [watch the narrated 11-minute film](docs/media/flow.mp4) (how it works, every limit and why, what is checked, what breaks first and the fix for each). To validate it with real care managers, see [the one-page protocol](docs/manager-protocol.md).
+[Step through it yourself](docs/flow.html) (open the file in a browser; each step also says what breaks first as data or people grow), or [watch the walkthrough](#watch-the-walkthrough-11-minutes). To validate it with real care managers, see [the one-page protocol](docs/manager-protocol.md).
 
 1. You type a question and the page sends it (`app/static/app.js`).
 2. The server checks it, gives it a request id and starts the agent (`app/server.py`).
