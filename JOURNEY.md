@@ -126,6 +126,13 @@ Replay mode records real answers so the app runs with no key.
 **Turned down:** token-by-token streaming (re-renders everything and shows broken citations) and saving history across reloads (the page starts empty on purpose).
 **Caveat:** a short answer can omit a real concern, and the evals check named facts, not the whole answer.
 
+### 14. A roster in the schema, and a flaky eval caught by repeating it (23:10)
+**A → B:** step 1 was nearly always a query counting notes per person, and "any medication issues" passed its eval 2 times in 5 → the schema lists everyone with visit counts (switches off above 30 people), the prompt says only words like "this week" narrow the window, and each step is timed in the logs.
+**Found:** a single eval run said 8 of 8 while the same question passed 2 of 5 when repeated. The model read "any issues" as "this week" and missed the 9 Nov visit where the note says family had not given the medication while the status said Completed. With a rule that only narrowing words narrow the window it passed 5 of 5, and the full set passed 8 of 8. First word came 1 second sooner on average, with steps down from 3 to 5 to 3 or 4, which is within the noise.
+**Lesson:** one eval run proves little for a model that varies. Repeat any question whose prompt changed (`--repeat 5 --only <id>`) before trusting it, and turn each failure into a case.
+**Turned down:** a second model grading completeness (3 to 10 seconds, same blind spots) and carrying old query results into follow-ups (tens of thousands of tokens against a 20 ms query).
+**Caveat:** the timings come from 4 runs per configuration.
+
 ## What Anthropic's memory write-up changes
 
 [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)

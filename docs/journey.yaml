@@ -403,6 +403,18 @@ steps:
     rejected: ["Streaming every token: it re-renders the whole answer each time and shows broken citations.", "Saving history across reloads: not yet, the page starts empty on purpose."]
     breaks: A short answer can leave out a real concern. The evals check the named facts, not the whole answer.
 
+  - id: 14
+    when: "23:10"
+    title: A roster in the schema, and a flaky eval caught by repeating it
+    commits: [d5d604c]
+    nodes: [schema, agent, evals]
+    A: step 1 was nearly always a query that counted notes per person, and "any medication issues" passed its eval 2 times in 5
+    B: the schema lists everyone with their visit counts, the prompt says only words like "this week" narrow the window, and every step is timed
+    why: The count query cost about 2.5 seconds of the 7 before the first word, and the model was reading "any issues" as "this week", which hid a 9 Nov problem.
+    found: Run once, the eval looked fine, because 8 of 8 passed on a lucky run. Run five times it passed 2 of 5, and 0 of 5 with the roster before the window rule. After the rule it passed 5 of 5 and the full set passed 8 of 8. First word moved from 7 to 8 seconds to 6 to 7, and steps from 3 to 5 down to 3 or 4. That gain is small and the runs vary.
+    rejected: ["A second model that grades whether the answer is complete: it adds 3 to 10 seconds and shares the first model's blind spots.", "Re-sending old query results on follow-ups: tens of thousands of tokens against a query that costs 20 milliseconds."]
+    breaks: The roster lists every person, so at about 200 people it becomes 8k tokens. It switches itself off above 30 people and the model queries instead.
+
 next:
   - id: n1
     title: Measure recall with varied text
