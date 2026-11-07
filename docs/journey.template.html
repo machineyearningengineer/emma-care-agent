@@ -105,7 +105,7 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
 .card { display: block; width: 100%; height: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 12px; }
 .card:hover { background: var(--soft); } .card.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .card .t { font-size: 11px; color: var(--muted); } .card .n { font-weight: 600; font-size: 14px; } .card.future { opacity: .5; }
-.card.next { border: 2px dashed var(--lime); }
+.card.next { border: 2px dashed var(--lime); } .card .p { font-size: 13px; margin: 4px 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
 </head>
@@ -183,7 +183,7 @@ function go(patch, scroll) {
 }
 const pickNode = (id) => go({ focus: { kind: "node", id }, story: null });
 const pickReq = (id) => go({ focus: { kind: "req", id }, story: null });
-const pickNext = (id) => go({ focus: { kind: "next", id }, story: null, step: LAST });
+const pickNext = (id) => { go({ focus: { kind: "next", id }, story: null, step: LAST }); $("detail").scrollIntoView({ block: "nearest", behavior: "smooth" }); };
 const pickStep = (i) => go({ step: Math.max(0, Math.min(LAST, i)), focus: null, story: null }, true);
 const pickStory = (i) => go(i == null || i < 0 ? { story: null } : { story: Math.min(i, ST.length - 1), focus: null, step: LAST });
 const focusNode = () => st.story != null ? ST[st.story].node : st.focus?.kind === "node" ? st.focus.id : null;
@@ -242,7 +242,7 @@ function reqPanel(d, r) {
   d.append(row("Parts that meet it", links(N.filter((n) => n.meets.includes(r.id)).map((n) => [n.label, () => pickNode(n.id)]))));
 }
 function nextPanel(d, x) {
-  d.append(h("h2", null, x.title), h("div", "meta", "Not built. " + x.trigger), ab(x.A, x.B));
+  d.append(h("h2", null, x.title), h("div", "meta", "Not built. Build it when: " + x.trigger), row("The problem", x.problem), ab(x.A, x.B), row("Why not yet", x.why_not_yet));
   d.append(row("Parts it touches", links(x.touches.map((t) => [node[t].label, () => pickNode(t)]))));
 }
 function stepPanel(d, s) {
@@ -360,7 +360,7 @@ async function copyMd() {
 $("title").textContent = D.title; $("sub").textContent = D.subtitle; $("range").max = LAST;
 R.forEach((r) => { const c = reqChip(r.id); c.dataset.id = r.id; c.title = r.text; $("reqs").append(c); });
 S.forEach((s, i) => { const li = h("li"), b = h("button", "card"); b.type = "button"; b.append(h("div", "t", s.when), h("div", "n", s.id + ". " + s.title)); b.addEventListener("click", () => pickStep(i)); li.append(b); $("tl").append(li); });
-NX.forEach((x) => { const li = h("li"), b = h("button", "card next"); b.type = "button"; b.append(h("div", "n", x.title), h("div", "t", x.trigger)); b.addEventListener("click", () => pickNext(x.id)); li.append(b); $("nx").append(li); });
+NX.forEach((x) => { const li = h("li"), b = h("button", "card next"); b.type = "button"; b.append(h("div", "n", x.title), h("div", "p", x.problem), h("div", "t", "Build it when: " + x.trigger)); b.addEventListener("click", () => pickNext(x.id)); li.append(b); $("nx").append(li); });
 $("range").addEventListener("input", (e) => go({ step: +e.target.value }));
 $("prev").addEventListener("click", () => go({ step: Math.max(0, st.step - 1) })); $("nextb").addEventListener("click", () => go({ step: Math.min(LAST, st.step + 1) }));
 $("story").addEventListener("click", () => pickStory(st.story == null ? 0 : null));

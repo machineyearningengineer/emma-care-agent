@@ -370,30 +370,40 @@ steps:
 next:
   - id: n1
     title: Measure recall with varied text
+    problem: Today the agent finds all five real concerns when the quiet people repeat the same text. Real notes vary, so we do not know whether it would still find them. A missed person gives no error.
+    why_not_yet: It needs a bigger test set with varied text, ideally written by someone other than me.
     trigger: Now. It is the one thing we cannot see.
     A: five of five on repeated text
     B: the same check with varied text and a source of realistic size
     touches: [evals, agent]
   - id: n2
     title: Store the read model
+    problem: The flat views and the search index are rebuilt for every query the agent runs. That takes about 6 ms on this data and would take far longer on a large database.
+    why_not_yet: At this size, rebuilding is simpler than keeping a stored index in sync.
     trigger: When the source is big enough that per-connection builds hurt.
     A: temp views and an index built per connection
     B: real views, a persistent FTS index kept in sync by triggers, and real indexes
     touches: [readmodel, db]
   - id: n3
     title: One page per person
+    problem: To answer who needs attention, the agent re-reads the raw notes on every question. With thousands of people that is slow and costly.
+    why_not_yet: A page that is stale or wrong can mislead. At 10 people, reading the raw records is cheaper and safer.
     trigger: When the scale check stops finding everyone, or broad questions get slow.
     A: the agent re-reads raw notes every time
     B: a dated, cited page per person, rebuilt offline, used as a lead and checked against the records
     touches: [agent, schema]
   - id: n4
     title: Fan out per person
+    problem: One agent reads everyone in one long conversation. Past a certain length, models read less carefully, so a person can be missed.
+    why_not_yet: The largest single call so far was about 32k tokens, which is fine.
     trigger: When one context is too long to read well.
     A: one long sequential loop
     B: shortlist with SQL, one small context per person in parallel, then rank
     touches: [agent, server]
   - id: n5
     title: Embeddings, if measured
+    problem: Keyword search finds near-fall but not unsteady on his feet. If real notes use many phrasings, some concerns would be missed.
+    why_not_yet: Nothing measured shows a phrasing miss, and embeddings add an index to keep current.
     trigger: Only when a measured miss comes from phrasing.
     A: keywords
     B: embeddings combined with FTS5 to propose candidates

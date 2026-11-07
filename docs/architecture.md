@@ -340,35 +340,45 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 
 ### Measure recall with varied text
 
-- When: Now. It is the one thing we cannot see.
+- Problem: Today the agent finds all five real concerns when the quiet people repeat the same text. Real notes vary, so we do not know whether it would still find them. A missed person gives no error.
+- Build it when: Now. It is the one thing we cannot see.
+- Why not yet: It needs a bigger test set with varied text, ideally written by someone other than me.
 - Before: five of five on repeated text
 - After: the same check with varied text and a source of realistic size
 - Touches: Evals, Agent loop
 
 ### Store the read model
 
-- When: When the source is big enough that per-connection builds hurt.
+- Problem: The flat views and the search index are rebuilt for every query the agent runs. That takes about 6 ms on this data and would take far longer on a large database.
+- Build it when: When the source is big enough that per-connection builds hurt.
+- Why not yet: At this size, rebuilding is simpler than keeping a stored index in sync.
 - Before: temp views and an index built per connection
 - After: real views, a persistent FTS index kept in sync by triggers, and real indexes
 - Touches: Views and full-text index, Read-only guard
 
 ### One page per person
 
-- When: When the scale check stops finding everyone, or broad questions get slow.
+- Problem: To answer who needs attention, the agent re-reads the raw notes on every question. With thousands of people that is slow and costly.
+- Build it when: When the scale check stops finding everyone, or broad questions get slow.
+- Why not yet: A page that is stale or wrong can mislead. At 10 people, reading the raw records is cheaper and safer.
 - Before: the agent re-reads raw notes every time
 - After: a dated, cited page per person, rebuilt offline, used as a lead and checked against the records
 - Touches: Agent loop, Schema and glossary
 
 ### Fan out per person
 
-- When: When one context is too long to read well.
+- Problem: One agent reads everyone in one long conversation. Past a certain length, models read less carefully, so a person can be missed.
+- Build it when: When one context is too long to read well.
+- Why not yet: The largest single call so far was about 32k tokens, which is fine.
 - Before: one long sequential loop
 - After: shortlist with SQL, one small context per person in parallel, then rank
 - Touches: Agent loop, FastAPI server
 
 ### Embeddings, if measured
 
-- When: Only when a measured miss comes from phrasing.
+- Problem: Keyword search finds near-fall but not unsteady on his feet. If real notes use many phrasings, some concerns would be missed.
+- Build it when: Only when a measured miss comes from phrasing.
+- Why not yet: Nothing measured shows a phrasing miss, and embeddings add an index to keep current.
 - Before: keywords
 - After: embeddings combined with FTS5 to propose candidates
 - Touches: Views and full-text index

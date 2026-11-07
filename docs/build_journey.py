@@ -180,7 +180,9 @@ def markdown(data: dict) -> tuple[str, dict[str, str]]:
         out += [
             f"### {x['title']}",
             "",
-            f"- When: {x['trigger']}",
+            f"- Problem: {x['problem']}",
+            f"- Build it when: {x['trigger']}",
+            f"- Why not yet: {x['why_not_yet']}",
             f"- Before: {x['A']}",
             f"- After: {x['B']}",
         ]
