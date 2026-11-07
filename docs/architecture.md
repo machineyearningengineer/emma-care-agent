@@ -48,6 +48,9 @@ What we did:
 - The system prompt in app/agent.py, versioned by a hash sent with every answer
 - A cheaper model that only suggests follow-ups, outside the loop
 
+The numbers, and why:
+- Model gpt-5.5, reasoning none: Reasoning off made a broad question about three times faster with about 60% fewer tokens, and the evals still passed. It is also the only reasoning setting this model accepts with tools on this endpoint.
+
 How it fails: Wrong scope ("any issues" read as "this week"), clearing a person whose notes it never read, or a long answer that hides the point.
 
 How we check: Repeats and rephrased questions, plus reading the answers.
@@ -64,6 +67,13 @@ What we did:
 - Views that join names to notes, and a full-text search index
 - Caps on rows, cell length and result size
 
+The numbers, and why:
+- 200 rows per query: Enough to read one person's notes for a fortnight. A bigger result is flagged as cut off, so the model narrows the query instead of guessing about the rest.
+- 500 characters per cell: A typical note is far shorter. Longer text is cut and marked, so one long field cannot fill the prompt.
+- 60,000 characters per result: About 15k tokens. This caps the whole result, so a wide query cannot flood the prompt. Results of 27k to 60k characters are the main input cost today.
+- 2.0 second query limit: SQL on this data takes milliseconds, so 2 seconds only stops a runaway statement.
+- 30 people in the roster: The roster in the prompt costs about 30 tokens a person. Above this it switches off and the model queries instead.
+
 How it fails: It cannot find what it needs, a result is so large it floods the prompt, or a cut-off result looks complete.
 
 How we check: Guardrail tests, a loud truncation warning in the result, and the scale check.
@@ -72,13 +82,19 @@ Gap: A second tool is worth adding only if recall fails.
 
 ### Control: What stops it going wrong or costing too much?
 
-Limits around the loop. The model chooses its own steps, and the code decides how far it may go.
+Limits around the loop. The model chooses its own steps, and the code decides how far it may go. The three limits on one question are independent, and the first to trip wins. The cap on live questions protects the server as a whole. None of the numbers has been tuned against real traffic; they are about double what we have seen.
 
 What we did:
 - A read-only connection with an authorizer that allows only reads
-- At most 8 steps, 150k prompt tokens and 120 seconds, then it must answer
-- Eight live questions at once, then a busy message
+- Three independent limits on one question (steps, prompt tokens, time). The first to trip makes the next turn the answer
+- A cap on live questions at once, then a busy message
 - Text in the database is treated as data, never as instructions
+
+The numbers, and why:
+- 8 steps: A step is one model turn that may ask for queries. Broad questions use 3 to 5 and simple ones 1 to 2, so this is about double the worst seen. It catches a model that keeps querying without converging. At the limit the next turn must answer with no tools.
+- 150,000 prompt tokens: Every step resends the whole conversation, so tokens grow faster than steps. A broad question uses 35k to 75k in total, so this is about double. It is the cost guard, and it keeps runs short of the long-context quality drop, which we have not measured. At the limit the next turn must answer.
+- 120 seconds: The normal wait is about 15 seconds and the slowest seen about 20. This is a safety net for a stalled API, not a target. It stops new steps from starting and does not cancel one already running. The API client has its own 90 second timeout.
+- 8 live questions at once: Each holds a server thread and an open model stream for about 15 seconds. 8 is a guess for one care team. It protects the API rate limit and the bill. The ninth gets a busy message and is not queued, because a queue hides overload.
 
 How it fails: A runaway loop, an instruction hidden in a note, a cost spike, or one slow question starving the others.
 
@@ -96,6 +112,10 @@ What we did:
 - app/events.py, the typed contract between agent and page
 - Evals with repeats and rephrasings, and logs with a request id
 
+The numbers, and why:
+- 6 messages of history: Three question and answer pairs. Enough for a follow-up like "what about her?", and older turns are dropped so cost stays flat. The server rejects more than this.
+- 2,000 characters per question: A long paste is not a question. The page and the server read the same number from one config.
+
 How it fails: An answer that is right but cannot be checked, or wrong with nobody noticing.
 
 How we check: Contract tests between prompt and page, the evals, and a live walk through real questions.
@@ -111,7 +131,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16, 17.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -120,7 +140,7 @@ Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16.
 - Trade-offs:
   - Plain JavaScript with no framework or build step. It costs hand-written rendering code.
   - Citations are record ids that the page fetches on tap. An id that does not exist shows an error in the record dialog.
-- Breaks first: Nothing yet. The whole answer is redrawn on each streamed chunk, which is fine at answer sizes.
+- Breaks first: Nothing yet. Text is revealed a few characters per frame and only the changing line is touched, which is fine at answer sizes.
 - At scale: No change. It is static files.
 
 Layer: Server
@@ -214,7 +234,7 @@ Layer: Agent. Built in step 4; changed in steps 4, 7, 10, 14, 15.
 
 Layer: Agent. Built in step 4; changed in steps 4, 12, 13.
 
-- What it does: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop.
+- What it does: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop. One question makes 3 to 5 calls to gpt-5.5, each carrying the same system prompt, the last 6 messages, the question and everything read so far, plus one short call to gpt-5.4-mini after the answer.
 - Always true: The prompt carries a version hash. It is logged and returned with every answer.
 - Meets: fr-ask (Ask in plain language); fr-unknowns (States the gaps); fr-followups (Suggests follow-ups); fr-refuse (Refuses writes); nfr-observe (Traceable)
 - Trade-offs:
@@ -467,6 +487,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: The page decides who is a person from the roster the server sends, not from how the model wrote the answer, so bold, plain and possessive uses all behave the same. Only full names match; a bare "Alfred" stays plain because the rule must never guess.
 - Turned down: Matching first names: it breaks the day two people share one. Sending the question on tap: the manager should choose what to ask.
 - Breaks next: A name the model misspells is not linked, and nobody notices. The roster is the one list, so a new person needs no page change.
+
+### Step 17, 00:40 on 7 Nov: A name opens four fixed questions
+
+- Before: tapping a name filled the composer with one question
+- After: tapping a name opens a small menu of four questions (this week, what changed against the week before, is the care plan current, is there an open safeguarding case) that fill the composer
+- Why: Managers act on people. The four questions are the ones a manager keeps asking about a person, so a fixed list saves typing at no cost and needs no extra model call.
+- Found: Run for one person, all four answered in 6 to 10 seconds in 2 steps. "What changed since last week" described changes inside the week, so the question now says "this week compared with the week before", and the answer then compared both weeks.
+- Turned down: A model that writes drill-downs for each name: another call per tap for questions that barely vary. Sending the question on tap: the manager chooses what to ask.
+- Breaks next: The four are the same for everyone. A person with no safeguarding history still gets that question, and the answer is a short no.
 
 ## What comes next
 

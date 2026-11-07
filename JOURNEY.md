@@ -26,6 +26,29 @@ no messages. That makes it an analyst more than an assistant, on purpose. It is 
 multi-agent and has no planner or self-check. An agent SDK would add tracing, not
 "agent-ness", so the 100-line loop stays hand-rolled.
 
+## What one question sends, and what comes back
+
+**Calls per question.** Three to five calls to gpt-5.5 (the loop: query, read, query, answer) and one short call to gpt-5.4-mini for the follow-up chips. Only two prompts are written by hand, the system prompt and the follow-up prompt. The tool definition (`run_sql`) rides along on every loop call.
+
+**What each loop call contains, in order:**
+1. The system prompt. It has the rules (anchor time, narrow with SQL, read the text, cross-check sources, answer shape) and the derived schema: tables and columns, value lists, the views, the roster of people, the reference date and the glossary of what the data cannot show. This part is identical every time, so the provider caches it.
+2. The last 6 messages of the conversation, as plain text. Earlier queries and results are never resent.
+3. The question.
+4. Everything read so far in this question: each query the model asked and the result it got back. This is why calls get bigger (about 3k tokens for the first, 30k to 57k for the last).
+
+**Why the answer has a shape.** The page reads the answer, so the shape is a contract. Each part has a job:
+
+| Part of the answer | Job | Who depends on it |
+|---|---|---|
+| The answer and the date range, up front | A manager can act in seconds and see whether the scope was wrong | The evals check the date and the range |
+| A ranked list, most urgent first | The order is the advice | The live walk checks the ranking |
+| "(visit 12)" and "(form 4)" after each claim | Every claim opens its record | The page turns exactly this pattern into buttons, and a test fails if the prompt and page disagree |
+| A bold name where a person first appears | Scanning | Not relied on: the page links names from the roster |
+| "What I couldn't determine:" with at most 3 bullets | Gaps that would change what the manager does | The page draws this as its own box, and every eval requires it |
+| Under about 250 words | Read in 30 seconds | Checked by reading, not by a test |
+
+**End to end, for one question.** The manager types a question. The page sends it with the last 6 messages. The server checks the size and a free slot, then starts the loop, or plays back a recording when there is no key. The model asks for queries, the code runs them read-only, and each query and its result stream to the page as events so the manager sees the work. The model writes the answer, which streams in. The page turns citations and names into buttons. A last small call suggests follow-ups. Tapping a citation opens the record, tapping a name opens four fixed questions, and a question the manager sends starts the whole thing again.
+
 ## Five ways to think about it
 
 The model is one layer of five, and each fails differently. The page version at [docs/journey.html](docs/journey.html) has each one expanded; the same text is in [docs/architecture.md](docs/architecture.md).
@@ -158,6 +181,12 @@ Replay mode records real answers so the app runs with no key.
 **Found:** the page takes "who is a person" from the roster the server sends, not from how the model formatted the answer, so bold, plain and possessive uses behave the same. Only full names match, because a bare "Alfred" would break the day two people share a first name.
 **Turned down:** matching first names, and sending on tap, because the manager chooses what to ask.
 **Caveat:** a misspelt name is not linked and nobody is told.
+
+### 17. A name opens four fixed questions (00:40)
+**A → B:** tapping a name filled the composer with one question → it opens four (this week, what changed against the week before, is the care plan current, is there an open safeguarding case) that fill the composer.
+**Found:** run for one person, all four answered in 6 to 10 seconds. "Since last week" described changes inside the week, so the question now asks for this week compared with the week before.
+**Turned down:** a model writing drill-downs per name (another call per tap) and sending on tap.
+**Caveat:** the four are the same for everyone.
 
 ## What Anthropic's memory write-up changes
 

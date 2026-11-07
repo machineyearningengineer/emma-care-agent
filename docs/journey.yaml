@@ -83,6 +83,9 @@ thinking:
     fails: Wrong scope ("any issues" read as "this week"), clearing a person whose notes it never read, or a long answer that hides the point.
     check: Repeats and rephrased questions, plus reading the answers.
     gap: We have no evidence yet that thinking longer helps. A drop in recall on varied notes is the signal to try it.
+    numbers:
+      - what: "Model ${MODEL}, reasoning ${REASONING_EFFORT}"
+        why: "Reasoning off made a broad question about three times faster with about 60% fewer tokens, and the evals still passed. It is also the only reasoning setting this model accepts with tools on this endpoint."
   - id: capability
     name: Capability
     question: What can it see and do?
@@ -95,18 +98,38 @@ thinking:
     fails: It cannot find what it needs, a result is so large it floods the prompt, or a cut-off result looks complete.
     check: Guardrail tests, a loud truncation warning in the result, and the scale check.
     gap: A second tool is worth adding only if recall fails.
+    numbers:
+      - what: "${MAX_ROWS} rows per query"
+        why: "Enough to read one person's notes for a fortnight. A bigger result is flagged as cut off, so the model narrows the query instead of guessing about the rest."
+      - what: "${MAX_CELL_CHARS} characters per cell"
+        why: "A typical note is far shorter. Longer text is cut and marked, so one long field cannot fill the prompt."
+      - what: "${MAX_RESULT_CHARS} characters per result"
+        why: "About 15k tokens. This caps the whole result, so a wide query cannot flood the prompt. Results of 27k to 60k characters are the main input cost today."
+      - what: "${TIMEOUT_S} second query limit"
+        why: "SQL on this data takes milliseconds, so 2 seconds only stops a runaway statement."
+      - what: "${MAX_ROSTER} people in the roster"
+        why: "The roster in the prompt costs about 30 tokens a person. Above this it switches off and the model queries instead."
   - id: control
     name: Control
     question: What stops it going wrong or costing too much?
-    plain: Limits around the loop. The model chooses its own steps, and the code decides how far it may go.
+    plain: Limits around the loop. The model chooses its own steps, and the code decides how far it may go. The three limits on one question are independent, and the first to trip wins. The cap on live questions protects the server as a whole. None of the numbers has been tuned against real traffic; they are about double what we have seen.
     here:
       - A read-only connection with an authorizer that allows only reads
-      - At most 8 steps, 150k prompt tokens and 120 seconds, then it must answer
-      - Eight live questions at once, then a busy message
+      - Three independent limits on one question (steps, prompt tokens, time). The first to trip makes the next turn the answer
+      - A cap on live questions at once, then a busy message
       - Text in the database is treated as data, never as instructions
     fails: A runaway loop, an instruction hidden in a note, a cost spike, or one slow question starving the others.
     check: A test for each limit, and per-step timings in the logs.
     gap: There is no sign-in or per-team scoping. Production would scope every query to the caller's team in code.
+    numbers:
+      - what: "${MAX_STEPS} steps"
+        why: "A step is one model turn that may ask for queries. Broad questions use 3 to 5 and simple ones 1 to 2, so this is about double the worst seen. It catches a model that keeps querying without converging. At the limit the next turn must answer with no tools."
+      - what: "${TOKEN_BUDGET} prompt tokens"
+        why: "Every step resends the whole conversation, so tokens grow faster than steps. A broad question uses 35k to 75k in total, so this is about double. It is the cost guard, and it keeps runs short of the long-context quality drop, which we have not measured. At the limit the next turn must answer."
+      - what: "${DEADLINE_S} seconds"
+        why: "The normal wait is about 15 seconds and the slowest seen about 20. This is a safety net for a stalled API, not a target. It stops new steps from starting and does not cancel one already running. The API client has its own 90 second timeout."
+      - what: "${MAX_CONCURRENT} live questions at once"
+        why: "Each holds a server thread and an open model stream for about 15 seconds. 8 is a guess for one care team. It protects the API rate limit and the bill. The ninth gets a busy message and is not queued, because a queue hides overload."
   - id: trust
     name: Trust
     question: Can a person rely on it, and can we tell when it is wrong?
@@ -119,6 +142,11 @@ thinking:
     fails: An answer that is right but cannot be checked, or wrong with nobody noticing.
     check: Contract tests between prompt and page, the evals, and a live walk through real questions.
     gap: Real questions from managers, and notes written by someone other than the builder.
+    numbers:
+      - what: "${HISTORY_MESSAGES} messages of history"
+        why: "Three question and answer pairs. Enough for a follow-up like \"what about her?\", and older turns are dropped so cost stays flat. The server rejects more than this."
+      - what: "${QUESTION_CHARS} characters per question"
+        why: "A long paste is not a question. The page and the server read the same number from one config."
 
 threads:
   - Contracts hold the layers together. Typed events, the citation grammar and one config file stop them drifting apart, which is why a test checks the prompt and the page agree.
@@ -136,7 +164,7 @@ nodes:
     tradeoffs:
       - Plain JavaScript with no framework or build step. It costs hand-written rendering code.
       - Citations are record ids that the page fetches on tap. An id that does not exist shows an error in the record dialog.
-    breaks: Nothing yet. The whole answer is redrawn on each streamed chunk, which is fine at answer sizes.
+    breaks: Nothing yet. Text is revealed a few characters per frame and only the changing line is touched, which is fine at answer sizes.
     scale: No change. It is static files.
   - id: server
     layer: Server
@@ -215,7 +243,7 @@ nodes:
   - id: model
     layer: Agent
     label: Model
-    what: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop.
+    what: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop. One question makes 3 to 5 calls to gpt-5.5, each carrying the same system prompt, the last 6 messages, the question and everything read so far, plus one short call to gpt-5.4-mini after the answer.
     invariant: The prompt carries a version hash. It is logged and returned with every answer.
     meets: [fr-ask, fr-unknowns, fr-followups, fr-refuse, nfr-observe]
     primary: fr
@@ -506,6 +534,18 @@ steps:
     found: The page decides who is a person from the roster the server sends, not from how the model wrote the answer, so bold, plain and possessive uses all behave the same. Only full names match; a bare "Alfred" stays plain because the rule must never guess.
     rejected: ["Matching first names: it breaks the day two people share one.", "Sending the question on tap: the manager should choose what to ask."]
     breaks: A name the model misspells is not linked, and nobody notices. The roster is the one list, so a new person needs no page change.
+
+  - id: 17
+    when: "00:40"
+    title: A name opens four fixed questions
+    commits: [d433777]
+    nodes: [page]
+    A: tapping a name filled the composer with one question
+    B: tapping a name opens a small menu of four questions (this week, what changed against the week before, is the care plan current, is there an open safeguarding case) that fill the composer
+    why: Managers act on people. The four questions are the ones a manager keeps asking about a person, so a fixed list saves typing at no cost and needs no extra model call.
+    found: Run for one person, all four answered in 6 to 10 seconds in 2 steps. "What changed since last week" described changes inside the week, so the question now says "this week compared with the week before", and the answer then compared both weeks.
+    rejected: ["A model that writes drill-downs for each name: another call per tap for questions that barely vary.", "Sending the question on tap: the manager chooses what to ask."]
+    breaks: The four are the same for everyone. A person with no safeguarding history still gets that question, and the answer is a short no.
 
 next:
   - id: n1

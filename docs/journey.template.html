@@ -424,6 +424,7 @@ D.thinking.forEach((t, i) => {
   const d = h("details"); d.open = i === 0;
   const sm = h("summary", null, `${i + 1}. ${t.name}`); sm.append(h("span", null, t.question)); d.append(sm, h("p", null, t.plain));
   d.append(h("div", "k", "What we did")); const ul = h("ul"); t.here.forEach((x) => ul.append(h("li", null, x))); d.append(ul);
+  if (t.numbers?.length) { d.append(h("div", "k", "The numbers, and why")); const nl = h("ul", "nums"); t.numbers.forEach((n) => { const li = h("li"); li.append(h("b", null, n.what + ". "), document.createTextNode(n.why)); nl.append(li); }); d.append(nl); }
   for (const [k, v] of [["How it fails", t.fails], ["How we check", t.check], ["Still missing", t.gap]]) d.append(h("div", "k", k), h("p", null, v));
   $("think").append(d);
 });

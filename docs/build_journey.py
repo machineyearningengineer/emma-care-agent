@@ -111,6 +111,12 @@ def problems(data: dict) -> list[str]:
             for k in ("plain", "here", "fails", "check", "gap")
             if not t.get(k)
         ]
+    for t in data["thinking"]:
+        out += [
+            f"thinking {t['id']} number {n.get('what')} has no why"
+            for n in t.get("numbers", [])
+            if not n.get("why")
+        ]
     steps = data["story"]["steps"]
     if not 7 <= len(steps) <= 9:
         out.append(f"story has {len(steps)} steps, want 7 to 9")
@@ -183,6 +189,8 @@ def markdown(data: dict) -> tuple[str, dict[str, str]]:
     for t in data["thinking"]:
         out += [f"### {t['name']}: {t['question']}", "", t["plain"], ""]
         out += ["What we did:"] + [f"- {x}" for x in t["here"]]
+        if t.get("numbers"):
+            out += ["", "The numbers, and why:"] + [f"- {n['what']}: {n['why']}" for n in t["numbers"]]
         out += [
             "",
             f"How it fails: {t['fails']}",
