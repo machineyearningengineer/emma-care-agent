@@ -1,15 +1,17 @@
-"""Render docs/journey.html from docs/journey.yaml.
+"""Render docs/journey.html and docs/architecture.md from docs/journey.yaml.
 
-Numbers come from the code (`${MAX_ROWS}` in the YAML), and every commit listed must exist in
-git history, so the page can't drift from the system it describes.
+Numbers come from the code (`${MAX_ROWS}` in the YAML), every commit listed must exist in git
+history, and every id (meets, edges, story, steps, next) must resolve, so the outputs can't drift
+from the system they describe.
 
-uv run python docs/build_journey.py            write docs/journey.html
-uv run python docs/build_journey.py --check    exit 1 if the file is out of date
+uv run python docs/build_journey.py            write both files
+uv run python docs/build_journey.py --check    exit 1 if either file is out of date
 """
 
 from __future__ import annotations
 
 import importlib
+import itertools
 import json
 import re
 import subprocess
@@ -56,15 +58,144 @@ def commits_exist(data: dict) -> list[str]:
     return missing
 
 
-def render() -> str:
+def connected(edges: list[dict], a: str, b: str) -> bool:
+    """Is there a path from a to b, ignoring edge direction?"""
+    seen, todo = {a}, [a]
+    while todo:
+        cur = todo.pop()
+        for e in edges:
+            for x, y in ((e["from"], e["to"]), (e["to"], e["from"])):
+                if x == cur and y not in seen:
+                    seen.add(y)
+                    todo.append(y)
+    return b in seen
+
+
+def problems(data: dict) -> list[str]:
+    """Everything wrong with the YAML's cross-references. Empty means consistent."""
+    out: list[str] = []
+    nodes = [n["id"] for n in data["nodes"]]
+    reqs = [r["id"] for r in data["requirements"]]
+    for kind, ids in (
+        ("node", nodes),
+        ("requirement", reqs),
+        ("step", [str(s["id"]) for s in data["steps"]]),
+    ):
+        out += [f"duplicate {kind} id {i}" for i in sorted({i for i in ids if ids.count(i) > 1})]
+    for n in data["nodes"]:
+        if not n.get("meets"):
+            out.append(f"node {n['id']} meets no requirement")
+        out += [f"node {n['id']} meets unknown {r}" for r in n.get("meets", []) if r not in reqs]
+        if not any(n["id"] in s["nodes"] for s in data["steps"]):
+            out.append(f"node {n['id']} is built in no step")
+    for r in data["requirements"]:
+        if r["kind"] not in ("functional", "nonfunctional"):
+            out.append(f"requirement {r['id']} has kind {r['kind']}")
+        if not any(r["id"] in n.get("meets", []) for n in data["nodes"]):
+            out.append(f"requirement {r['id']} is met by no node")
+    for e in data["edges"]:
+        out += [
+            f"edge {e['from']} to {e['to']} names unknown {x}" for x in (e["from"], e["to"]) if x not in nodes
+        ]
+    steps = data["story"]["steps"]
+    if not 7 <= len(steps) <= 9:
+        out.append(f"story has {len(steps)} steps, want 7 to 9")
+    out += [f"story names unknown node {s['node']}" for s in steps if s["node"] not in nodes]
+    for a, b in itertools.pairwise(steps):
+        if a["node"] in nodes and b["node"] in nodes and not connected(data["edges"], a["node"], b["node"]):
+            out.append(f"story goes from {a['node']} to {b['node']}, which no edges connect")
+    for s in data["steps"]:
+        out += [f"step {s['id']} names unknown node {n}" for n in s["nodes"] if n not in nodes]
+    for x in data["next"]:
+        out += [f"next {x['id']} touches unknown node {n}" for n in x["touches"] if n not in nodes]
+    return out
+
+
+def load() -> dict:
+    """The YAML with code constants filled in, and each node's `since` derived from the steps."""
     data = fill(yaml.safe_load((HERE / "journey.yaml").read_text()))
-    node_ids = {n["id"] for n in data["nodes"]}
-    refs = [n for s in data["steps"] for n in s.get("nodes", [])] + [
-        n for s in data["next"] for n in s["touches"]
+    found = problems(data)
+    if found:
+        raise ValueError("journey.yaml is inconsistent:\n  " + "\n  ".join(found))
+    for n in data["nodes"]:
+        n["since"] = min(s["id"] for s in data["steps"] if n["id"] in s["nodes"])
+    return data
+
+
+def _node_md(data: dict, n: dict) -> str:
+    reqs = {r["id"]: r for r in data["requirements"]}
+    built = [str(s["id"]) for s in data["steps"] if n["id"] in s["nodes"]]
+    nxt = [f"{x['id']} {x['title']}" for x in data["next"] if n["id"] in x["touches"]]
+    lines = [
+        f"### {n['label']}",
+        "",
+        f"Layer: {n['layer']}. Built in step {n['since']}; changed in steps {', '.join(built)}.",
+        "",
     ]
-    unknown = sorted(set(refs) - node_ids)
-    if unknown:
-        raise ValueError(f"journey.yaml names nodes that don't exist: {unknown}")
+    lines += [f"- What it does: {n['what']}", f"- Always true: {n['invariant']}"]
+    if n.get("limits"):
+        lines.append("- Limits: " + "; ".join(n["limits"]))
+    lines.append("- Meets: " + "; ".join(f"{i} ({reqs[i]['label']})" for i in n["meets"]))
+    lines.append("- Trade-offs:")
+    lines += [f"  - {t}" for t in n["tradeoffs"]]
+    lines += [f"- Breaks first: {n['breaks']}", f"- At scale: {n['scale']}"]
+    if nxt:
+        lines.append("- Next steps touching it: " + "; ".join(nxt))
+    return "\n".join(lines) + "\n"
+
+
+def markdown(data: dict) -> tuple[str, dict[str, str]]:
+    """The whole document, and each node's section on its own (for the page's copy button)."""
+    labels = {n["id"]: n["label"] for n in data["nodes"]}
+    sections = {n["id"]: _node_md(data, n) for n in data["nodes"]}
+    out = [f"# {data['title']}", "", data["subtitle"], "", "## Requirements", ""]
+    out += ["| Id | Kind | Requirement | Met by |", "| --- | --- | --- | --- |"]
+    for r in data["requirements"]:
+        by = ", ".join(n["label"] for n in data["nodes"] if r["id"] in n["meets"])
+        out.append(f"| {r['id']} | {'FR' if r['kind'] == 'functional' else 'NFR'} | {r['text']} | {by} |")
+    out += ["", "## Parts, by layer", ""]
+    for layer in dict.fromkeys(n["layer"] for n in data["nodes"]):
+        out += [f"Layer: {layer}", ""]
+        out += [sections[n["id"]] for n in data["nodes"] if n["layer"] == layer]
+    out += ["## Connections", ""]
+    out += [f"- {labels[e['from']]} to {labels[e['to']]}: {e['label']}" for e in data["edges"]]
+    out += ["", "## One request", "", data["story"]["title"], ""]
+    out += [f"{i}. {labels[s['node']]}: {s['text']}" for i, s in enumerate(data["story"]["steps"], 1)]
+    out += ["", "## How it was built", ""]
+    for s in data["steps"]:
+        out += [
+            f"### Step {s['id']}, {s['when']} on 7 Nov: {s['title']}",
+            "",
+            f"- Before: {s['A']}",
+            f"- After: {s['B']}",
+        ]
+        out.append(f"- Why: {s['why']}")
+        if s.get("found"):
+            out.append(f"- Found: {s['found']}")
+        if s.get("rejected"):
+            out.append("- Turned down: " + " ".join(s["rejected"]))
+        out += [f"- Breaks next: {s['breaks']}", ""]
+    out += ["## What comes next", ""]
+    for x in data["next"]:
+        out += [
+            f"### {x['title']}",
+            "",
+            f"- When: {x['trigger']}",
+            f"- Before: {x['A']}",
+            f"- After: {x['B']}",
+        ]
+        out += ["- Touches: " + ", ".join(labels[t] for t in x["touches"]), ""]
+    return "\n".join(out).rstrip() + "\n", sections
+
+
+def render_markdown() -> str:
+    return markdown(load())[0]
+
+
+def render() -> str:
+    data = load()
+    full, sections = markdown(data)
+    data["md"] = {"all": full, "nodes": sections}
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     return (HERE / "journey.template.html").read_text().replace("/*DATA*/null", payload)
 
@@ -74,12 +205,15 @@ def main() -> int:
     if missing:
         print("commits not in git history:", ", ".join(missing))
         return 1
-    html = render()
-    target = HERE / "journey.html"
+    outputs = {HERE / "journey.html": render(), HERE / "architecture.md": render_markdown()}
     if "--check" in sys.argv:
-        return 0 if target.exists() and target.read_text() == html else 1
-    target.write_text(html)
-    print(f"wrote {target.relative_to(ROOT)}")
+        stale = [p.name for p, text in outputs.items() if not p.exists() or p.read_text() != text]
+        if stale:
+            print("out of date:", ", ".join(stale))
+        return 1 if stale else 0
+    for path, text in outputs.items():
+        path.write_text(text)
+        print(f"wrote {path.relative_to(ROOT)}")
     return 0
 
 
