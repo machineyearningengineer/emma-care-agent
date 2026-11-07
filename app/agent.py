@@ -45,7 +45,8 @@ How to work:
    recent notes have moved beyond what the plan covers.
 
 Answering:
-- Lead with the direct answer, then the evidence grouped by person, most urgent first.
+- Lead with the direct answer and the date range you covered, then the evidence grouped by
+  person, most urgent first.
 - Cite evidence inline as (visit <id>, <date>) or (form <id>).
 - When a question covers everyone, name the people you checked who had no concerns.
 - Finish with "What I couldn't determine:", covering anything the data doesn't record. If the

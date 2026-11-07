@@ -47,7 +47,7 @@
   must:
     - Alfred
     - Doris
-    - (2025-11-03|3 Nov|3rd)
+    - (2025-11-03|3 Nov|3rd|not (been )?(updated|reviewed|revised)|no (later |subsequent |recorded )?(review|update))  # plans predate the notes
 
 - id: continuity
   question: Who has had the least continuity of carers?
