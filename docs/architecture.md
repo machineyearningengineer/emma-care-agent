@@ -126,6 +126,30 @@ Twice over. The database refuses (read-only connection, authorizer), and the pro
 - Trade-off: The refusal is a prompt rule, so it can vary; the database refusal is the guarantee. A refusal still triggers suggested follow-ups, which are harmless.
 - Built in step 1
 
+### What is the request id in an answer's footer for?
+
+To find one answer in the logs. Every request gets a 12-character id that is in the response header, the stream's first event, the footer and every log line.
+
+- Evidence: Grep the id and you get the whole story of that answer: when it started, each query with rows, size and milliseconds, then one line with steps, seconds, first word, seconds per model call, SQL time, prompt, completion, cached and peak tokens, truncations and errors. A failed answer shows the same id in its error.
+- Trade-off: Logs go to standard output and nothing stores them, so a history needs a log store. Questions and SQL are left out unless CARE_LOG_CONTENT=1, because they can name people, so by default you see the shape of an answer and not its content.
+- Built in step 7
+
+### Can we see what costs the most tokens?
+
+Partly. You can see tokens per model call and per query result, not per source.
+
+- Evidence: Each done line has prompt tokens for every model call, the peak and the cached share. Each query result now carries its size in characters, shown in the step list and logged, so the costliest query is visible. The system prompt, history and tool results are not split in tokens.
+- Trade-off: A true split needs counting tokens ourselves, which is more machinery than the question needs. On the medication question the results are most of the cost, and that is what the 30k cap targets.
+- Built in step 18
+
+### How does the citation preview behave?
+
+It opens after the pointer rests 150 ms, switches at once between neighbours, closes 150 ms after leaving, never opens while scrolling, and sits below the citation unless there is more room above.
+
+- Evidence: Checked with a script: nothing at 60 ms, open by 360 ms, a neighbour switches in under 80 ms, closed within 280 ms of leaving, and a hover that scrolled under a still pointer stays closed. The timings and the keep-clear-of-the-edge rule are borrowed from the receipts app.
+- Trade-off: Names do not get a preview, only a click menu, because a name appears many times in one answer. The preview is for touch-less pointers only; on touch you tap the record.
+- Built in step 19
+
 ### What did we leave out on purpose?
 
 Sign-in, saved history, embeddings, a planner, per-person pages and hover previews on names.
@@ -246,7 +270,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16, 17.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12, 13, 16, 17, 19.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -262,7 +286,7 @@ Layer: Server
 
 ### FastAPI server
 
-Layer: Server. Built in step 6; changed in steps 6, 7, 9, 10, 16.
+Layer: Server. Built in step 6; changed in steps 6, 7, 9, 10, 16, 19.
 
 - What it does: One streaming endpoint, POST /api/ask/stream, plus record lookups and the page. Every request gets an id that appears on every event and log line.
 - Always true: At most 8 live questions run at once. The next one is told to retry, not queued.
@@ -620,6 +644,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: A view of de-duplicated comments looked promising but removed almost nothing (572 of 1135 were distinct after normalising), so it was dropped. Repeated evals then caught "(visits 192-210)", which the page cannot link, so the prompt now forbids ranges and the eval check fails on them.
 - Turned down: A domain library of ready-made queries: it hides the schema from the model and grows with every new question. An explicit planning step: the roster already removes the counting query, and the first query is the plan.
 - Breaks next: A cap this size can hide a relevant row in a very wide query. The truncation warning tells the model, and it must narrow and re-run before clearing anyone.
+
+### Step 19, 21:10 on 7 Nov: A second untangle audit
+
+- Before: the database path read in two places, the citation pattern written three times, the gaps heading in the prompt, the page and the evals, three floating layers each placing itself, and four scripts that edited sys.path to find the app
+- After: config owns the path, app/contract.py owns the citation pattern and the heading (a test fails if the page's copy drifts), one log helper, one placement rule for the name menu and the citation preview, and the project installs as a package so imports just work
+- Why: Pieces that must agree should sit in one place or be checked by a test. The audit used the untangle-codebase method: list every hidden link, needless link and surplus, write the fix above the problems it resolves, and count what is left.
+- Found: Records read through the agent's connection, so each citation lookup built the search index it never uses. The question limit was in the HTML, the config and a JavaScript default; the page now takes it from the server. A refusal and its follow-up chips showed an empty 'N queries' box, now hidden.
+- Turned down: Splitting ask_stream into smaller functions: it is long but reads in one straight line, and the pieces would share state through arguments. A hover preview on names: a name appears many times in an answer, and the click menu already offers the four questions. Removing comments and tests as the skill offers: not asked for, and the tests are the contract checks.
+- Breaks next: The page keeps its own copy of the citation pattern because a browser cannot import Python. The contract test is what stops it drifting.
 
 ## What comes next
 

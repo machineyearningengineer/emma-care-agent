@@ -31,6 +31,7 @@ class Result(TypedDict):
     sql: str
     params: list
     ms: float
+    chars: NotRequired[int]  # size of the result as the model received it
     row_count: NotRequired[int]
     truncated: NotRequired[bool]
     cells_truncated: NotRequired[bool]

@@ -285,7 +285,9 @@ def _run_tool(name: str, args: dict) -> tuple[str, dict]:
             truncated=out["truncated"],
             cells_truncated=out.get("cells_truncated", False),
         )
-    return json.dumps(out, ensure_ascii=False, default=str), entry
+    content = json.dumps(out, ensure_ascii=False, default=str)
+    entry["chars"] = len(content)  # what this result adds to the prompt, so the costliest query is visible
+    return content, entry
 
 
 if __name__ == "__main__":

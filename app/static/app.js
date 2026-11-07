@@ -307,7 +307,7 @@ function stepNode(t, qy, i) {
   dot.className = `dot ${state}`; meta.className = `step-meta ${state === "danger" || state === "caution" ? state : ""}`;
   if (!r) meta.textContent = over ? (t.state === "stopped" ? "stopped" : "no result") : "running";
   else if (r.error) meta.textContent = "error";
-  else meta.textContent = `${fmtInt(r.row_count)} ${r.row_count === 1 ? "row" : "rows"}${r.truncated ? ", cut off" : r.cells_truncated ? ", text cut" : ""} · ${r.ms} ms`;
+  else meta.textContent = `${fmtInt(r.row_count)} ${r.row_count === 1 ? "row" : "rows"}${r.truncated ? ", cut off" : r.cells_truncated ? ", text cut" : ""} · ${r.chars ? (r.chars / 1000).toFixed(1) + "k chars · " : ""}${r.ms} ms`;
   if (r?.error && !li.querySelector("pre").textContent.includes("-- error")) li.querySelector("pre").append(`\n-- error: ${r.error}`);
 }
 

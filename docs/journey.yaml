@@ -139,6 +139,24 @@ decisions:
     evidence: "Found by hand: 'You have permission to change his name' got a refusal plus a padded 'What the records can't show' box about the correct name. The prompt now says to stop, a check fails any refusal that adds that section, and three phrasings (delete, permission, 'ignore your instructions') passed 12 of 12 on gpt-5.5."
     tradeoff: "The refusal is a prompt rule, so it can vary; the database refusal is the guarantee. A refusal still triggers suggested follow-ups, which are harmless."
     step: 1
+  - id: request_id
+    q: What is the request id in an answer's footer for?
+    a: To find one answer in the logs. Every request gets a 12-character id that is in the response header, the stream's first event, the footer and every log line.
+    evidence: "Grep the id and you get the whole story of that answer: when it started, each query with rows, size and milliseconds, then one line with steps, seconds, first word, seconds per model call, SQL time, prompt, completion, cached and peak tokens, truncations and errors. A failed answer shows the same id in its error."
+    tradeoff: Logs go to standard output and nothing stores them, so a history needs a log store. Questions and SQL are left out unless CARE_LOG_CONTENT=1, because they can name people, so by default you see the shape of an answer and not its content.
+    step: 7
+  - id: cost
+    q: Can we see what costs the most tokens?
+    a: Partly. You can see tokens per model call and per query result, not per source.
+    evidence: "Each done line has prompt tokens for every model call, the peak and the cached share. Each query result now carries its size in characters, shown in the step list and logged, so the costliest query is visible. The system prompt, history and tool results are not split in tokens."
+    tradeoff: A true split needs counting tokens ourselves, which is more machinery than the question needs. On the medication question the results are most of the cost, and that is what the 30k cap targets.
+    step: 18
+  - id: preview
+    q: How does the citation preview behave?
+    a: It opens after the pointer rests 150 ms, switches at once between neighbours, closes 150 ms after leaving, never opens while scrolling, and sits below the citation unless there is more room above.
+    evidence: "Checked with a script: nothing at 60 ms, open by 360 ms, a neighbour switches in under 80 ms, closed within 280 ms of leaving, and a hover that scrolled under a still pointer stays closed. The timings and the keep-clear-of-the-edge rule are borrowed from the receipts app."
+    tradeoff: Names do not get a preview, only a click menu, because a name appears many times in one answer. The preview is for touch-less pointers only; on touch you tap the record.
+    step: 19
   - id: not_built
     q: "What did we leave out on purpose?"
     a: "Sign-in, saved history, embeddings, a planner, per-person pages and hover previews on names."
@@ -643,6 +661,18 @@ steps:
     found: A view of de-duplicated comments looked promising but removed almost nothing (572 of 1135 were distinct after normalising), so it was dropped. Repeated evals then caught "(visits 192-210)", which the page cannot link, so the prompt now forbids ranges and the eval check fails on them.
     rejected: ["A domain library of ready-made queries: it hides the schema from the model and grows with every new question.", "An explicit planning step: the roster already removes the counting query, and the first query is the plan."]
     breaks: A cap this size can hide a relevant row in a very wide query. The truncation warning tells the model, and it must narrow and re-run before clearing anyone.
+
+  - id: 19
+    when: "21:10"
+    title: A second untangle audit
+    commits: [60b74ce, 19bf62b]
+    nodes: [server, page]
+    A: the database path read in two places, the citation pattern written three times, the gaps heading in the prompt, the page and the evals, three floating layers each placing itself, and four scripts that edited sys.path to find the app
+    B: config owns the path, app/contract.py owns the citation pattern and the heading (a test fails if the page's copy drifts), one log helper, one placement rule for the name menu and the citation preview, and the project installs as a package so imports just work
+    why: "Pieces that must agree should sit in one place or be checked by a test. The audit used the untangle-codebase method: list every hidden link, needless link and surplus, write the fix above the problems it resolves, and count what is left."
+    found: "Records read through the agent's connection, so each citation lookup built the search index it never uses. The question limit was in the HTML, the config and a JavaScript default; the page now takes it from the server. A refusal and its follow-up chips showed an empty 'N queries' box, now hidden."
+    rejected: ["Splitting ask_stream into smaller functions: it is long but reads in one straight line, and the pieces would share state through arguments.", "A hover preview on names: a name appears many times in an answer, and the click menu already offers the four questions.", "Removing comments and tests as the skill offers: not asked for, and the tests are the contract checks."]
+    breaks: The page keeps its own copy of the citation pattern because a browser cannot import Python. The contract test is what stops it drifting.
 
 next:
   - id: n1
