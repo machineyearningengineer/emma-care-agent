@@ -111,7 +111,7 @@ Layer: Agent. Built in step 2; changed in steps 2, 14.
 
 ### Agent loop
 
-Layer: Agent. Built in step 4; changed in steps 4, 7, 10, 14.
+Layer: Agent. Built in step 4; changed in steps 4, 7, 10, 14, 15.
 
 - What it does: The model plans a query, the code runs it, the result goes back to the model, and this repeats. ask_stream is the only implementation of the loop.
 - Always true: Three bounds apply to every question. When the first trips, the next model turn has tools switched off and must answer.
@@ -186,7 +186,7 @@ Layer: Checks
 
 ### Evals
 
-Layer: Checks. Built in step 5; changed in steps 5, 11, 14.
+Layer: Checks. Built in step 5; changed in steps 5, 11, 14, 15.
 
 - What it does: Eight golden questions with required facts, one of them a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
 - Always true: A prompt change is measured against the same questions each time.
@@ -362,6 +362,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: Run once, the eval looked fine, because 8 of 8 passed on a lucky run. Run five times it passed 2 of 5, and 0 of 5 with the roster before the window rule. After the rule it passed 5 of 5 and the full set passed 8 of 8. First word moved from 7 to 8 seconds to 6 to 7, and steps from 3 to 5 down to 3 or 4. That gain is small and the runs vary.
 - Turned down: A second model that grades whether the answer is complete: it adds 3 to 10 seconds and shares the first model's blind spots. Re-sending old query results on follow-ups: tens of thousands of tokens against a query that costs 20 milliseconds.
 - Breaks next: The roster lists every person, so at about 200 people it becomes 8k tokens. It switches itself off above 30 people and the model queries instead.
+
+### Step 15, 23:40 on 7 Nov: Ask each golden question several ways
+
+- Before: one phrasing per golden question, run once
+- After: two more phrasings per question that a manager might type, run with --variants and repeated
+- Why: The medication miss came from a phrasing, not a missing fact. The way to find the next one is to change the words and keep the check.
+- Found: 20 of 21 passed on the first run of the variants. The failure was "Do any care plans need updating?", which named the right people but never said the plans date from 3 Nov or have no review date. A rule to give the plan's date fixed it, and 9 of 9 passed over three repeats.
+- Turned down: A model that writes the paraphrases: it would drift toward how the model already reads questions, which is the blind spot.
+- Breaks next: Eleven extra phrasings is a small sample. The check is a list of required facts, so it cannot see a wrong ranking or a missing nuance.
 
 ## What comes next
 

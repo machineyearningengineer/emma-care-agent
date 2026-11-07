@@ -133,6 +133,12 @@ Replay mode records real answers so the app runs with no key.
 **Turned down:** a second model grading completeness (3 to 10 seconds, same blind spots) and carrying old query results into follow-ups (tens of thousands of tokens against a 20 ms query).
 **Caveat:** the timings come from 4 runs per configuration.
 
+### 15. Ask each golden question several ways (23:40)
+**A → B:** one phrasing per golden question, run once → two more phrasings a manager might type, run with `--variants` and repeated.
+**Found:** 20 of 21 passed first time. "Do any care plans need updating?" named the right people but never gave the plans' date (3 Nov) or said they have no review date. The prompt now asks for the date whenever it calls a plan out of date, and 9 of 9 passed over three repeats.
+**Turned down:** a model writing the paraphrases, because it would drift toward how the model already reads questions.
+**Caveat:** eleven extra phrasings is a small sample, and the check cannot see a wrong ranking.
+
 ## What Anthropic's memory write-up changes
 
 [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)

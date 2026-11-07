@@ -415,6 +415,18 @@ steps:
     rejected: ["A second model that grades whether the answer is complete: it adds 3 to 10 seconds and shares the first model's blind spots.", "Re-sending old query results on follow-ups: tens of thousands of tokens against a query that costs 20 milliseconds."]
     breaks: The roster lists every person, so at about 200 people it becomes 8k tokens. It switches itself off above 30 people and the model queries instead.
 
+  - id: 15
+    when: "23:40"
+    title: Ask each golden question several ways
+    commits: [6e47e5a]
+    nodes: [evals, agent]
+    A: one phrasing per golden question, run once
+    B: two more phrasings per question that a manager might type, run with --variants and repeated
+    why: The medication miss came from a phrasing, not a missing fact. The way to find the next one is to change the words and keep the check.
+    found: 20 of 21 passed on the first run of the variants. The failure was "Do any care plans need updating?", which named the right people but never said the plans date from 3 Nov or have no review date. A rule to give the plan's date fixed it, and 9 of 9 passed over three repeats.
+    rejected: ["A model that writes the paraphrases: it would drift toward how the model already reads questions, which is the blind spot."]
+    breaks: Eleven extra phrasings is a small sample. The check is a list of required facts, so it cannot see a wrong ranking or a missing nuance.
+
 next:
   - id: n1
     title: Measure recall with varied text
