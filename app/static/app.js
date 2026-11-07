@@ -117,7 +117,13 @@ function render(t) {
   t.ui.label.textContent = label;
   if (t.ui.shown !== t.state) { t.ui.activity.open = running; t.ui.shown = t.state; }  // open while working, fold when writing starts
   t.ui.status.hidden = !running;
-  t.ui.status.textContent = t.state === "starting" ? "Reading the schema…" : `Running query ${n}…`;
+  if (running) {
+    const secs = Math.floor((performance.now() - t.startedAt) / 1000);
+    const doing = t.state === "starting" ? "Reading the schema" : "Working";
+    t.ui.status.txt.textContent = `${doing} · ${n ? queriesOf(n) + " · " : ""}${secs}s`;
+    const last = t.queries.at(-1);
+    t.ui.status.last.textContent = last ? (last.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || last.sql).trim() : "";
+  }
   t.queries.forEach((qy, i) => stepNode(t, qy, i));
   t.ui.answer.innerHTML = t.text ? markdown(t.text) + (t.state === "writing" ? '<span class="caret"></span>' : "") : "";
   const bad = t.state === "failed" || t.state === "stopped";
@@ -149,6 +155,8 @@ function build(question) {
   const steps = el("ol", "steps");
   activity.append(summary, steps);
   const status = el("div", "status");
+  status.txt = el("span", "txt"); status.last = el("code", "last");
+  status.append(el("span", "spin"), status.txt, status.last);
   const answer = el("div", "answer");
   const error = el("div", "error"); error.hidden = true;
   error.innerHTML = "<strong></strong><span></span><small></small>";
@@ -163,7 +171,7 @@ async function submit(question) {
   $("intro")?.remove();
   q.value = ""; grow();
   const prior = history();
-  const turn = { question, state: "starting", queries: [], text: "", done: null, error: null, requestId: null, suggestions: [], ...build(question) };
+  const turn = { question, state: "starting", startedAt: performance.now(), queries: [], text: "", done: null, error: null, requestId: null, suggestions: [], ...build(question) };
   turn.ui.error.append(retryButton(turn));
   $("thread").append(turn.node);
   turns.push(turn); renderNav();
@@ -174,6 +182,7 @@ async function submit(question) {
   const paint = () => { raf = 0; render(turn); keepUp(); };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
   paint();
+  const tick = setInterval(schedule, 1000);  // keeps the elapsed time moving between events
   try {
     const res = await fetch("/api/ask/stream", {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
@@ -203,7 +212,7 @@ async function submit(question) {
       turn.error = err instanceof TypeError ? "Couldn't reach the server. Check that it is still running, then ask again." : err.message;
     }
   } finally {
-    cancelAnimationFrame(raf); paint(); renderNav();
+    clearInterval(tick); cancelAnimationFrame(raf); paint(); renderNav();
     controller = null; setBusy(false); $("jump").classList.remove("show");
     if (window.matchMedia("(pointer: fine)").matches) q.focus();
   }

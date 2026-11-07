@@ -14,7 +14,7 @@ from collections.abc import Iterator
 
 from openai import OpenAI
 
-from app.config import DEADLINE_S, FOLLOW_UP_MODEL, MAX_STEPS, MODEL, TOKEN_BUDGET
+from app.config import DEADLINE_S, FOLLOW_UP_MODEL, MAX_STEPS, MODEL, REASONING_EFFORT, TOKEN_BUDGET
 from app.db import MAX_ROWS, run_sql
 from app.events import Event
 from app.schema import describe_schema
@@ -129,6 +129,7 @@ def ask_stream(
             stream_options={"include_usage": True},
             # Same key for every request: they share the system prompt, so the provider can reuse it.
             prompt_cache_key="care-agent",
+            **({"reasoning_effort": REASONING_EFFORT} if REASONING_EFFORT else {}),
         )
         with stream:  # closes the HTTP stream if the caller stops listening
             for chunk in stream:

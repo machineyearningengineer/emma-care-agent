@@ -159,7 +159,12 @@ main {
   background: var(--primary); border-radius: 2px; animation: blink 1s steps(2, start) infinite;
 }
 @keyframes blink { to { visibility: hidden; } }
-.status { color: var(--text-3); font-size: var(--step--1); margin-top: 14px; }
+.status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: var(--step--1); margin-top: 14px; font-variant-numeric: tabular-nums; }
+.status .spin { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); animation: pulse .9s ease-in-out infinite alternate; }
+.status .txt { background: linear-gradient(90deg, var(--text-3) 30%, var(--primary) 50%, var(--text-3) 70%) 0 0 / 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+.status .last { flex-basis: 100%; font: 12px var(--font-mono); color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes shimmer { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) { .status .spin, .status .txt { animation: none; } .status .txt { color: var(--text-2); background: none; } }
 .foot {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 14px;
   color: var(--text-3); font-size: 12.5px; font-variant-numeric: tabular-nums; animation: fade .3s var(--ease) both;

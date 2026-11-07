@@ -28,6 +28,7 @@ visits missed or late?* and see it say the data can't tell. Tap a suggested foll
 | `OPENAI_API_KEY` | none | Set: live mode. Unset: replay mode. |
 | `CARE_AGENT_MODE` | auto | Force `live` or `replay`. |
 | `OPENAI_MODEL` / `FOLLOW_UP_MODEL` | gpt-5.5 / gpt-5.4-mini | Answering and follow-up models. |
+| `OPENAI_REASONING_EFFORT` | `none` | Thinking time per turn. `none` is about 3x faster and passes the same evals; empty leaves it to the model. |
 | `CARE_LOG_CONTENT` | off | `1` logs questions and SQL, which can name people. |
 | `CARE_DB` | `sources/care_data.db` | The database to query. |
 

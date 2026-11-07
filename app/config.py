@@ -13,6 +13,10 @@ load_dotenv()
 
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")  # the app; evals default to a cheaper one
 FOLLOW_UP_MODEL = os.environ.get("FOLLOW_UP_MODEL", "gpt-5.4-mini")
+# Reasoning effort for the answering model. The chat API only allows tools with "none" on gpt-5.5, and on
+# the broad question "none" took 19 s and 75k tokens against 51 s and 205k with reasoning on, with the
+# same five people found and 8 of 8 evals passing. Set it to an empty string to leave it to the model.
+REASONING_EFFORT = os.environ.get("OPENAI_REASONING_EFFORT", "none") or None
 
 # Three independent bounds on one question; the first to trip makes the next turn the answer.
 MAX_STEPS = 8  # model turns that may call tools
