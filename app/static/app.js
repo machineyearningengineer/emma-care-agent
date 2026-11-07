@@ -261,7 +261,7 @@ function footer(t) {
   const spans = parts.map((p) => Object.assign(el("span"), { textContent: p }));
   if (cited.length) {
     const all = el("button", "link-btn", plural(cited.length, "record") + " cited"); all.type = "button";
-    all.addEventListener("click", () => showCited(cited));
+    all.addEventListener("click", () => showCited(cited, t.ui.answer));
     spans.splice(2, 0, all);
   }
   return [...spans, copy];
@@ -335,13 +335,25 @@ async function openRecord(kind, id, back) {
     dlg.querySelector("form").prepend(b);
   }
 }
-function showCited(cited) {
+function showCited(cited, answer) {
   const list = el("div", "rec-body");
-  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3>`;
+  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Open a record, or jump to the line that cites it.</p>`;
   for (const { kind, id } of cited) {
-    const b = el("button", "link-btn rec-row", `${kind === "visit" ? "Visit" : "Form"} ${id}`); b.type = "button";
-    b.addEventListener("click", () => openRecord(kind, id, () => showCited(cited)));
-    list.append(b);
+    const at = answer.querySelector(`.cite[data-kind="${kind}"][data-id="${id}"]`);
+    const line = (at?.closest("li, p")?.textContent || "").replace(/\s+/g, " ").trim();
+    const row = el("div", "rec-row");
+    const open = el("button", "link-btn", `${kind === "visit" ? "Visit" : "Form"} ${id}`); open.type = "button";
+    open.addEventListener("click", () => openRecord(kind, id, () => showCited(cited, answer)));
+    row.append(open);
+    if (at) {
+      const jump = el("button", "link-btn jump-to", "Show in answer"); jump.type = "button";
+      jump.addEventListener("click", () => {
+        dlg.close(); at.scrollIntoView({ block: "center", behavior: "smooth" });
+        at.closest("li, p").classList.add("flash"); setTimeout(() => at.closest("li, p")?.classList.remove("flash"), 2200);
+      });
+      row.append(jump, Object.assign(el("div", "rec-line"), { textContent: line.length > 110 ? line.slice(0, 107) + "…" : line }));
+    }
+    list.append(row);
   }
   list.insertAdjacentHTML("beforeend", `<form method="dialog"><button class="link-btn">Close</button></form>`);
   dlg.replaceChildren(list);
