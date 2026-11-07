@@ -1,6 +1,6 @@
 """Run the golden questions against the agent and check required facts.
 
-uv run python evals/run.py [--model gpt-5.4-mini] [--repeat N] [--only id,id]
+uv run python evals/run.py [--model gpt-5.5] [--repeat N] [--only id,id]
 Exit code is non-zero if any check fails.
 """
 
@@ -16,7 +16,9 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from app.agent import MODEL, ask  # noqa: E402
+from app.agent import ask
+
+EVAL_MODEL = "gpt-5.4-mini"  # cheap by default; pass --model gpt-5.5 to check the app's model
 
 HERE = Path(__file__).parent
 
@@ -37,7 +39,7 @@ def run_one(case: dict, model: str) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--model", default=EVAL_MODEL)
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--only")
     args = ap.parse_args()

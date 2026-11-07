@@ -18,7 +18,8 @@ from app.schema import describe_schema
 
 load_dotenv()
 
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
+# The app answers with the stronger model; evals default to the cheap one (evals/run.py).
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 MAX_STEPS = 8  # model turns that may call tools; the next turn must answer
 
 SYSTEM = """\
@@ -58,24 +59,26 @@ Answering:
 Database schema (derived from the live data):
 {schema}"""
 
-TOOLS = [{
-    "type": "function",
-    "function": {
-        "name": "run_sql",
-        "description": (
-            "Run one read-only SQLite SELECT (CTEs, json_each and json_extract allowed). "
-            "Use ? placeholders with params for values. Returns columns, rows, and truncated."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "sql": {"type": "string"},
-                "params": {"type": "array", "items": {"type": ["string", "number"]}},
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "run_sql",
+            "description": (
+                "Run one read-only SQLite SELECT (CTEs, json_each and json_extract allowed). "
+                "Use ? placeholders with params for values. Returns columns, rows, and truncated."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {"type": "string"},
+                    "params": {"type": "array", "items": {"type": ["string", "number"]}},
+                },
+                "required": ["sql"],
             },
-            "required": ["sql"],
         },
-    },
-}]
+    }
+]
 
 
 def ask_stream(question: str, history: list[dict] | None = None, model: str = MODEL, client=None):
@@ -103,8 +106,12 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
         text: list[str] = []
         calls: dict[int, dict] = {}
         stream = client.chat.completions.create(
-            model=model, messages=messages, tools=TOOLS, tool_choice="none" if final else "auto",
-            stream=True, stream_options={"include_usage": True},
+            model=model,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="none" if final else "auto",
+            stream=True,
+            stream_options={"include_usage": True},
         )
         with stream:  # closes the HTTP stream if the caller stops listening
             for chunk in stream:
@@ -138,15 +145,27 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
         if text:
             yield {"type": "discard"}
         ordered = [calls[i] for i in sorted(calls)]
-        messages.append({
-            "role": "assistant",
-            "content": "".join(text) or None,
-            "tool_calls": [{"id": c["id"], "type": "function",
-                            "function": {"name": c["name"], "arguments": c["arguments"]}} for c in ordered],
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": "".join(text) or None,
+                "tool_calls": [
+                    {
+                        "id": c["id"],
+                        "type": "function",
+                        "function": {"name": c["name"], "arguments": c["arguments"]},
+                    }
+                    for c in ordered
+                ],
+            }
+        )
         for c in ordered:
             args = _parse_args(c)
-            yield {"type": "query", "sql": args.get("sql", c["arguments"]), "params": args.get("params") or []}
+            yield {
+                "type": "query",
+                "sql": args.get("sql", c["arguments"]),
+                "params": args.get("params") or [],
+            }
             content, entry = _run_tool(c["name"], args)
             trace.append(entry)
             yield {"type": "result", **entry}
@@ -180,8 +199,11 @@ def _run_tool(name: str, args: dict) -> tuple[str, dict]:
     if "error" in out:
         entry["error"] = out["error"]
     else:
-        entry.update(row_count=out["row_count"], truncated=out["truncated"],
-                     cells_truncated=out.get("cells_truncated", False))
+        entry.update(
+            row_count=out["row_count"],
+            truncated=out["truncated"],
+            cells_truncated=out.get("cells_truncated", False),
+        )
     return json.dumps(out, ensure_ascii=False, default=str), entry
 
 
