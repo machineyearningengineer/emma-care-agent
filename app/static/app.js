@@ -425,11 +425,7 @@ function showCited(cited, answer) {
 }
 $("thread").addEventListener("click", (e) => {
   const p = e.target.closest(".person");
-  if (p) {  // seed the composer, never send: the manager decides what to ask
-    q.value = `How has ${p.textContent} been this week?`;
-    q.dispatchEvent(new Event("input", { bubbles: true })); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
-    return;
-  }
+  if (p) { showPersonMenu(p); return; }
   const c = e.target.closest(".cite");
   if (c) openRecord(c.dataset.kind, c.dataset.id, null, [sentenceAround(c)]);
 });
@@ -483,3 +479,32 @@ themeBtn.addEventListener("click", () => {
   showTheme();
 });
 showTheme();
+
+/* ---------- Drill-down: a name offers a few fixed questions. Choosing one fills the composer; the manager sends it. ---------- */
+const DRILLS = [
+  (n) => `How has ${n} been this week?`,
+  (n) => `What changed for ${n} this week compared with the week before?`,
+  (n) => `Is ${n}'s care plan still current given recent visit notes?`,
+  (n) => `Is there an open safeguarding case for ${n}?`,
+];
+const menu = el("div", "person-menu"); menu.hidden = true; menu.setAttribute("role", "menu"); document.body.append(menu);
+function hideMenu() { menu.hidden = true; }
+function showPersonMenu(anchor) {
+  const name = anchor.textContent;
+  menu.replaceChildren(...DRILLS.map((ask) => {
+    const text = ask(name), b = el("button", "", ""); b.type = "button"; b.textContent = text; b.setAttribute("role", "menuitem");
+    b.addEventListener("click", () => {
+      q.value = text; q.dispatchEvent(new Event("input", { bubbles: true })); hideMenu();
+      q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    });
+    return b;
+  }));
+  menu.hidden = false;
+  const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
+  menu.style.top = `${r.bottom + h + 12 > innerHeight && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6}px`;
+  menu.querySelector("button").focus();
+}
+addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".person, .person-menu")) hideMenu(); });
+addEventListener("keydown", (e) => { if (e.key === "Escape") hideMenu(); });
+addEventListener("scroll", hideMenu, { passive: true });
