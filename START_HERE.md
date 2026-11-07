@@ -2,18 +2,20 @@
 
 One path, in order. Stop after any step; each one stands alone.
 
-## Read in this order (about 35 minutes)
+## Read in this order (about 40 minutes)
 
 1. **Watch it work (3 min).** `uv run uvicorn app.server:app`, open http://localhost:8000, ask
    "Who needs my attention this week?" Tap a citation. Tap a name.
-2. **Straight line and citations (5 min).** The first two sections of `docs/journey.html`: one question
-   end to end, then how a citation gets from a database row to a button.
-3. **The short version (5 min).** Next section: every decision with its answer, evidence and
+2. **Watch one question go end to end (3 min).** Open `docs/flow.html` and press Play: nine steps from the
+   keyboard to a tapped citation, with the real data at each step.
+3. **Straight line and citations (5 min).** The first two sections of `docs/journey.html`: the same flow in
+   words, then how a citation gets from a database row to a button.
+4. **The short version (5 min).** Next section: every decision with its answer, evidence and
    trade-off. This is the cheat sheet.
-4. **Press Story (3 min).** Same page. It walks one question from the browser to the database and back.
-5. **Five ways to think about it (7 min).** Same page. The model is one layer of five. Open one at a time.
-6. **Run the demo (5 min).** `DEMO.md`: happy path, medium path, honest negative, trap, refusal.
-7. **How it was built (optional).** The step cards on the journey page, or `JOURNEY.md` as plain text.
+5. **Press Story (3 min).** Same page. It walks one question from the browser to the database and back.
+6. **Five ways to think about it (7 min).** Same page. The model is one layer of five. Open one at a time.
+7. **Run the demo (5 min).** `DEMO.md`: happy path, medium path, honest negative, trap, refusal.
+8. **How it was built (optional).** The step cards on the journey page, or `JOURNEY.md` as plain text.
 
 If you only have 5 minutes: steps 1 and 2.
 

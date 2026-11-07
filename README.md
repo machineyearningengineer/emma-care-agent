@@ -30,6 +30,10 @@ The same agent runs in the terminal: `uv run python -m app.agent "Who needs my a
 
 ## One question, in a straight line
 
+![One question, end to end](docs/media/flow.gif)
+
+[Step through it yourself](docs/flow.html) (open the file in a browser; each step also says what breaks first as data or people grow), or [watch the 2-minute video](docs/media/flow.mp4).
+
 1. You type a question and the page sends it (`app/static/app.js`).
 2. The server checks it, gives it a request id and starts the agent (`app/server.py`).
 3. The agent sends the model the question plus a prompt that already holds the schema, the people and a glossary (`app/agent.py`, `app/schema.py`).

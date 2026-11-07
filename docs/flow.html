@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One question, end to end</title>
+<style>
+:root { color-scheme: light dark; --bg:#fafafd; --surface:#fff; --text:#1c1b33; --muted:#6b6a82; --line:#e3e2ee; --accent:#6d4fe0; --wash:#efeafd; --ok:#0f7a5a; --warn:#a15c00; --warn-wash:#fdf0dc; --code:#f3f2fa; }
+@media (prefers-color-scheme: dark) { :root { --bg:#14131f; --surface:#1d1c2c; --text:#ecebf7; --muted:#9a99b3; --line:#2f2e45; --accent:#a590ff; --wash:#2a2547; --ok:#4cc9a0; --warn:#f0b35a; --warn-wash:#33281a; --code:#252438; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 20px; }
+.bar { display: flex; gap: 8px; align-items: center; margin: 0 0 16px; flex-wrap: wrap; }
+button { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 10px; padding: 6px 14px; cursor: pointer; }
+button:hover { border-color: var(--accent); } button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.dots { display: flex; gap: 6px; margin-left: auto; } .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); border: 0; padding: 0; } .dot.on { background: var(--accent); } .dot.past { background: var(--muted); }
+.stage { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; position: relative; margin-bottom: 14px; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; transition: border-color .3s, background .3s, transform .3s; min-height: 78px; }
+.node b { display: block; font-size: 14px; } .node span { font-size: 12px; color: var(--muted); }
+.node.on { border-color: var(--accent); background: var(--wash); transform: translateY(-2px); }
+.rail { height: 4px; background: var(--line); border-radius: 4px; margin: 0 0 16px; position: relative; }
+.pulse { position: absolute; top: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); transition: left .9s cubic-bezier(.4,0,.2,1); box-shadow: 0 0 0 5px var(--wash); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+.card h2 { font-size: 18px; margin: 0 0 6px; } .card p { margin: 6px 0 12px; }
+.where { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); }
+pre { margin: 10px 0 0; padding: 12px 14px; background: var(--code); border-radius: 10px; overflow-x: auto; font: 13px/1.55 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+mark { background: var(--wash); color: var(--accent); font-weight: 700; padding: 0 3px; border-radius: 4px; outline: 2px solid var(--accent); }
+.btnlike { display: inline-block; color: var(--accent); border-bottom: 2px dotted var(--accent); font-weight: 700; }
+.dialog { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--bg); }
+.dialog .k { font: 700 11px system-ui; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-top: 8px; }
+.dialog blockquote { margin: 4px 0 0; padding-left: 12px; border-left: 3px solid var(--line); }
+.claim { background: var(--wash); padding: 8px 10px; border-radius: 8px; margin-top: 4px; }
+.checks { display: grid; gap: 8px; margin-top: 10px; } .checks div { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); }
+.checks .ok { border-color: var(--ok); } .checks .no { border-color: var(--warn); background: var(--warn-wash); }
+.scale { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--warn-wash); border: 1px solid var(--warn); font-size: 15px; }
+.scale b { color: var(--warn); } .scale .who { font: 700 11px system-ui; letter-spacing: .05em; text-transform: uppercase; color: var(--warn); }
+.scene { animation: in .35s ease both; } @keyframes in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) { .stage { grid-template-columns: repeat(2, 1fr); } .rail { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>One question, end to end</h1>
+  <p class="sub">Follow one real question from the keyboard to a citation you can tap, and see what breaks first at each step as data or people grow. Use the arrows, or press Play.</p>
+  <div class="bar">
+    <button id="prev" aria-label="Previous">‹</button><button id="play" class="primary">Play</button><button id="next" aria-label="Next">›</button>
+    <span id="count" class="where"></span><div class="dots" id="dots"></div>
+  </div>
+  <div class="stage" id="stage"></div>
+  <div class="rail"><div class="pulse" id="pulse"></div></div>
+  <div class="card" id="card" aria-live="polite"></div>
+</div>
+<script>
+const NODES = [
+  ["Page", "app.js in the browser"],
+  ["Server + agent", "server.py, agent.py"],
+  ["Model", "gpt-5.5, one tool"],
+  ["Database", "SQLite, read-only"],
+];
+const Q = "Are there any medication issues I should know about?";
+const ROW = "visit_id | person       | activity   | status    | comment\n<mark>293</mark>      | Iris Bennett | Medication | Completed | Family reported not to have given morning medication again; escalated to office";
+const SENTENCE = "Medication: on 2025-11-09, the family reported not giving morning medication again, and the activity is still marked “Completed”";
+const SCENES = [
+  { at: 0, title: "1. You ask", where: "app/static/app.js (run)",
+    text: "The page adds your question to the thread and sends it, with the last few finished answers as history.",
+    body: `<pre>POST /api/ask/stream\n{ "question": "${Q}", "history": [] }</pre>`,
+    scale: { who: "Usage", breaks: 'Nothing yet. It is static files and the text is revealed a few characters a frame.', fix: 'No change needed.' } },
+  { at: 1, title: "2. The server starts the agent", where: "app/server.py, app/schema.py",
+    text: "The server gives the request an id, then the agent builds the prompt: instructions, the schema read from the live database, the list of people, and a glossary. All of it is the same for every question, so the provider caches it.",
+    body: `<pre>{"type":"start","request_id":"18fa2f514df3","mode":"live"}\n\nprompt = instructions + tables and views + 10 active people + glossary\n         (about 3k tokens, cached after the first call)</pre>`,
+    scale: { who: "More people asking", breaks: 'Each live question holds a worker thread for up to 120 seconds, and only 8 run at once; the ninth is told to retry. There is also no sign-in.', fix: 'An async client or a queue, and per-person quotas, which need identity first.' } },
+  { at: 2, title: "3. The model chooses a query", where: "app/agent.py (ask_stream)",
+    text: "The model has one tool, run_sql. It writes the SQL itself. The views it queries already carry the id of the record each row came from.",
+    body: `<pre>run_sql(\n  "SELECT visit_id, person, activity, status, comment\n   FROM activity_comments\n   WHERE comment LIKE '%medic%'")</pre>`,
+    scale: { who: "More data", breaks: 'Model-written SQL can be valid and wrong, such as a join that drops people. The list of people in the prompt costs about 30 tokens each, so it switches itself off above 30 people.', fix: 'A flatter read model gives fewer wrong queries; above 30 people the model counts and lists with a query.' } },
+  { at: 3, title: "4. The database answers, read-only", where: "app/db.py (run_sql)",
+    text: "The query runs on a read-only connection with caps on rows, size and time. Notice the id. Every row the model reads has the id of its record.",
+    body: `<pre>${ROW}</pre><p class="where">Capped at 200 rows, 500 characters a cell, 30,000 characters in all.</p>`,
+    scale: { who: "More data", breaks: 'LIKE and json_each scan whole tables, so a big source hits the 2 second limit. The read model and search index are rebuilt for every query: about 6 ms here, far more on a large database.', fix: 'Real indexes and a stored read model; on Postgres, a read-only role and a statement timeout.' } },
+  { at: 2, title: "5. The model writes the answer, ids included", where: "app/agent.py (SYSTEM)",
+    text: "The prompt asks for one exact form: (visit 12), (form 4) or (visits 12, 15). The model puts the id it just read after the sentence it supports.",
+    body: `<pre>${SENTENCE} <mark>(visit 293)</mark>.</pre>`,
+    scale: { who: "More data", breaks: 'Every step re-sends the whole conversation, so prompt tokens grow with each step (about 35k to 75k per broad question, half cached). Past a certain length the model reads less carefully.', fix: 'One small context per person, run in parallel, then rank.' } },
+  { at: 1, title: "6. The answer streams back as lines of JSON", where: "app/events.py, app/server.py",
+    text: "The text travels word by word. Nothing marks a citation here: it is plain text. The final line carries the whole answer, the queries it ran and the token counts.",
+    body: `<pre>{"type":"delta","text":"…marked “Completed” "}\n{"type":"delta","text":"<mark>(visit 293)</mark>."}\n{"type":"done","steps":3,"seconds":13.4,"usage":{…}}</pre>`,
+    scale: { who: "More clients", breaks: 'Nothing breaks. The protocol is one typed definition with a test.', fix: 'Version the events once a second client exists.' } },
+  { at: 0, title: "7. The page turns the text into buttons", where: "app/static/app.js (CITE, inline)",
+    text: "The page escapes the text so it cannot inject HTML. One pattern then swaps each match for a button holding the kind and the id. Anything that does not match stays plain text, so a mistake is visible. People's names are matched against the roster the server sent.",
+    body: `<pre>CITE = /\\((visits?|forms?) (\\d+(?:, \\d+)*)\\)/gi\n\n"(visit 293)"  →  (visit <span class="btnlike">293</span>)\n                  data-kind="visit" data-id="293"</pre>`,
+    scale: { who: "More data", breaks: 'Nothing yet. Only the changing line of the page is touched, which is fine at answer sizes.', fix: 'No change needed.' } },
+  { at: 0, title: "8. A tap opens the record behind it", where: "app/records.py, app/static/app.js (renderRecord)",
+    text: "The button asks the server for the source row. The dialog shows the sentence of the answer the citation sits in, above the record as written, so you check the claim against the source.",
+    body: `<pre>GET /api/records/visit/293</pre><div class="dialog"><b>Visit 293</b> · Iris Bennett · Sun 9 Nov, 08:00–08:45 · Carer Isla Munro<div class="k">The answer says</div><div class="claim">${SENTENCE}</div><div class="k">Visit note, as recorded</div><blockquote>I completed the morning visit for Iris Bennett … Family reported not to have given morning medication again; escalated to office.</blockquote></div>`,
+    scale: { who: "More people", breaks: 'Any id can be fetched. There is no sign-in and no scoping to an organisation.', fix: "Scope every lookup to the caller's organisation. This must come before real use." } },
+  { at: 1, title: "9. What is checked, and what is not", where: "app/contract.py, tests/test_contracts.py, evals/run.py",
+    text: "A test fails if the page's pattern drifts from the shared contract. Evals fail an answer with a citation the page cannot link, or one that points at a record that does not exist.",
+    body: `<div class="checks"><div class="ok">Checked: the form of every citation, and that the record exists.</div><div class="ok">Checked: refusals stop at one sentence; recorded demo answers pass the same rules.</div><div class="no">Not checked: that the record really supports the sentence. A real id proves the model did not invent a record, not that it read it correctly.</div></div>`,
+    scale: { who: "Trust", breaks: 'One person wrote the answers, the checks and the rephrasings, so the blind spots are in all three. Recall on varied real notes is the one thing we cannot see, and a missed person raises no error.', fix: "Labelled data and phrasings from someone who did not write the agent, and a sample of real managers' questions." } },
+  { at: 1, title: "10. What breaks first, in order", where: "docs/journey.yaml (What breaks next)",
+    text: "Not everything breaks at once, and it breaks in different ways depending on whether you add more data or more people.",
+    body: `<div class="checks"><div class="no"><b>1. Recall on varied notes (now, silently).</b> Real notes use many phrasings and a missed person gives no error. Measure it first.</div><div class="no"><b>2. Scans and the rebuilt read model (more data).</b> Queries slow down until they hit the 2 second limit. Store the read model, add indexes.</div><div class="no"><b>3. One thread per live question (more people).</b> Eight at once, then Busy. Needs a queue or async, and quotas, which need sign-in.</div><div class="no"><b>4. One long conversation (more data).</b> Past a certain length the model reads less carefully. Fan out per person.</div><div class="no"><b>5. No sign-in or organisation scoping (before any real use).</b> Any record id can be fetched.</div></div><p class="where">A scale check with about 200 generated people still found all five real concerns. It does not test varied phrasing.</p>`,
+    scale: { who: "Order", breaks: "The first four are about growth. The fifth is a gate: it comes before any real use, whatever the size.", fix: "Each has a trigger and a reason it waits in the journey page, \"What breaks next\"." } },
+];
+const $ = (id) => document.getElementById(id);
+let i = 0, timer = null;
+$("stage").innerHTML = NODES.map(([a, b]) => `<div class="node"><b>${a}</b><span>${b}</span></div>`).join("");
+$("dots").innerHTML = SCENES.map((_, n) => `<button class="dot" aria-label="Step ${n + 1}" data-n="${n}"></button>`).join("");
+function show(n) {
+  i = (n + SCENES.length) % SCENES.length;
+  const s = SCENES[i];
+  document.querySelectorAll(".node").forEach((el, k) => el.classList.toggle("on", k === s.at));
+  $("pulse").style.left = `calc(${(s.at + 0.5) * 25}% - 6px)`;
+  $("card").innerHTML = `<div class="scene"><h2>${s.title}</h2><div class="where">${s.where}</div><p>${s.text}</p>${s.body}${s.scale ? `<div class="scale"><div class="who">At scale: ${s.scale.who}</div><div><b>Breaks first:</b> ${s.scale.breaks}</div><div><b>Fix:</b> ${s.scale.fix}</div></div>` : ""}</div>`;
+  $("count").textContent = `${i + 1} of ${SCENES.length}`;
+  document.querySelectorAll(".dot").forEach((d, k) => { d.className = "dot" + (k === i ? " on" : k < i ? " past" : ""); });
+}
+function stop() { clearInterval(timer); timer = null; $("play").textContent = "Play"; }
+function play() { $("play").textContent = "Pause"; timer = setInterval(() => { if (i === SCENES.length - 1) { stop(); return; } show(i + 1); }, +new URLSearchParams(location.search).get("ms") || 9000); }
+$("play").onclick = () => (timer ? stop() : (i === SCENES.length - 1 && show(0), play()));
+$("prev").onclick = () => { stop(); show(i - 1); }; $("next").onclick = () => { stop(); show(i + 1); };
+$("dots").onclick = (e) => { const n = e.target.dataset.n; if (n != null) { stop(); show(+n); } };
+addEventListener("keydown", (e) => { if (e.key === "ArrowRight") $("next").click(); if (e.key === "ArrowLeft") $("prev").click(); });
+show(0);
+if (new URLSearchParams(location.search).has("autoplay")) play();
+</script>
+</body>
+</html>
