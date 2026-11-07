@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 
-from app.db import connect
+from app.db import open_readonly
 
 
 def _one(sql: str, params: list):
-    con = connect()
+    con = open_readonly()
     try:
         return con.execute(sql, params).fetchone()
     finally:
@@ -17,7 +17,7 @@ def _one(sql: str, params: list):
 
 def overview() -> dict:
     """Whose data this is and how recent it is."""
-    con = connect()
+    con = open_readonly()
     try:
         org = con.execute("SELECT name FROM org_units ORDER BY id LIMIT 1").fetchone()
         rows = con.execute("SELECT name FROM service_users WHERE status = 'Active' ORDER BY name")

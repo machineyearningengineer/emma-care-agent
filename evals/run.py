@@ -16,8 +16,8 @@ from pathlib import Path
 
 import yaml
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.agent import ask
+from app.contract import UNKNOWNS, unlinkable_citations
 
 EVAL_MODEL = "gpt-5.4-mini"  # cheap by default; pass --model gpt-5.5 to check the app's model
 
@@ -29,17 +29,10 @@ def check(case: dict, answer: str) -> list[str]:
     present = [f"NOT {p}" for p in case.get("must_not", []) if re.search(p, answer, re.I)]
     # The page folds this section into its own box, so every answer must have it.
     needs_unknowns = case.get("unknowns", True)
-    unknowns = (
-        []
-        if not needs_unknowns or re.search(r"what i couldn.?t determine", answer, re.I)
-        else ["unknowns section"]
-    )
-    # The page turns "(visit 12)" into a button and shows anything else as plain text.
-    odd = [
-        m
-        for m in re.findall(r"\((?:visits?|forms?)\s[^()]*\)", answer, re.I)
-        if not re.fullmatch(r"\((visits?|forms?) \d+(?:, \d+)*\)", m, re.I)
-    ]
+    unknowns = [] if not needs_unknowns or UNKNOWNS.search(answer) else ["unknowns section"]
+    odd = unlinkable_citations(
+        answer
+    )  # the page turns "(visit 12)" into a button and shows anything else as text
     return missing + present + unknowns + [f"unlinkable citation {m}" for m in odd]
 
 

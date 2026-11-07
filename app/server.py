@@ -7,8 +7,6 @@ every log line, so a reported problem can be found in the logs.
 from __future__ import annotations
 
 import json
-import logging
-import sys
 import threading
 import time
 import uuid
@@ -22,7 +20,8 @@ from pydantic import BaseModel, Field
 
 from app import records
 from app.agent import PROMPT_VERSION, ask_stream
-from app.config import HISTORY_MESSAGES, LOG_CONTENT, MAX_CONCURRENT, MODEL, QUESTION_CHARS, mode
+from app.config import HISTORY_MESSAGES, MAX_CONCURRENT, MODEL, QUESTION_CHARS, mode
+from app.logs import log_event
 from app.replay import EXAMPLES, replay_stream
 
 app = FastAPI(title="Care data agent")
@@ -30,30 +29,12 @@ STATIC = Path(__file__).parent / "static"
 INDEX = STATIC / "index.html"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
-log = logging.getLogger("care_agent")
-if not log.handlers:
-    _h = logging.StreamHandler(sys.stdout)
-    _h.setFormatter(logging.Formatter("%(message)s"))
-    log.addHandler(_h)
-    log.setLevel(logging.INFO)
-    log.propagate = False
-
 
 _live_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
-_CONTENT_FIELDS = {"question", "sql", "params"}  # can name people; logged only when CARE_LOG_CONTENT=1
 
 
 def _log(request_id: str, event: str, **fields) -> None:
-    """One JSON object per line: easy to grep, easy to ship to any log store."""
-    if not LOG_CONTENT:
-        fields = {k: v for k, v in fields.items() if k not in _CONTENT_FIELDS}
-    log.info(
-        json.dumps(
-            {"ts": round(time.time(), 3), "request_id": request_id, "event": event, **fields},
-            ensure_ascii=False,
-            default=str,
-        )
-    )
+    log_event(event, request_id=request_id, **fields)
 
 
 class Turn(BaseModel):

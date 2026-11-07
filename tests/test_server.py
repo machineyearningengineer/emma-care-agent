@@ -4,7 +4,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from app import server
+from app import logs, server
 from app.events import validate
 
 
@@ -99,8 +99,8 @@ def _fake_done_stream(question, history):
 
 def _logged(monkeypatch, content):
     lines = []
-    monkeypatch.setattr(server.log, "info", lines.append)
-    monkeypatch.setattr(server, "LOG_CONTENT", content)
+    monkeypatch.setattr(logs.log, "info", lines.append)
+    monkeypatch.setattr(logs, "LOG_CONTENT", content)
     monkeypatch.setattr(server, "ask_stream", _fake_done_stream)
     monkeypatch.setenv("CARE_AGENT_MODE", "live")
     TestClient(server.app).post("/api/ask/stream", json={"question": "How is Iris?"})

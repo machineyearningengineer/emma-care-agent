@@ -7,12 +7,11 @@ SQL it likes, and SQLite itself refuses anything that isn't a bounded read.
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 import time
 from pathlib import Path
 
-DB_PATH = Path(os.environ.get("CARE_DB", Path(__file__).parent.parent / "sources" / "care_data.db"))
+from app.config import DB_PATH
 
 MAX_ROWS = 200
 MAX_CELL_CHARS = 500
@@ -56,9 +55,14 @@ INSERT INTO temp.search SELECT 'form', form_id, person, created_at, question || 
 """
 
 
+def open_readonly(path: Path = DB_PATH) -> sqlite3.Connection:
+    """The file itself, read-only at the OS level: for code that reads a record, not for the agent."""
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
-    """Open the file read-only at the OS level, add the read model, then lock the connection to reads."""
-    con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    """The agent's connection: read-only, plus the read model, then locked to reads."""
+    con = open_readonly(path)
     con.executescript(_READ_MODEL)
     con.execute("PRAGMA query_only = ON")
     con.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MAX_VALUE_BYTES)

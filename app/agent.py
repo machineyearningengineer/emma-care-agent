@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import time
 from collections.abc import Iterator
 
@@ -17,9 +16,8 @@ from openai import OpenAI
 from app.config import DEADLINE_S, FOLLOW_UP_MODEL, MAX_STEPS, MODEL, REASONING_EFFORT, TOKEN_BUDGET
 from app.db import MAX_ROWS, run_sql
 from app.events import Event
+from app.logs import log_event
 from app.schema import describe_schema
-
-log = logging.getLogger("care_agent")
 
 SYSTEM = """\
 You help care managers understand how the people their home-care service supports are doing,
@@ -259,7 +257,7 @@ def follow_ups(question: str, answer: str, client=None) -> list[str]:
         items = json.loads(resp.choices[0].message.content or "{}").get("questions", [])
         return [q.strip() for q in items if isinstance(q, str) and q.strip()][:3]
     except Exception as e:  # suggestions are optional, but a broken model name must not stay invisible
-        log.warning(json.dumps({"event": "follow_ups_failed", "error": f"{type(e).__name__}: {e}"}))
+        log_event("follow_ups_failed", error=f"{type(e).__name__}: {e}")
         return []
 
 

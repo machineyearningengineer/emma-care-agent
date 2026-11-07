@@ -4,13 +4,11 @@ uv run python evals/probes.py [--model gpt-5.5] [--only id,id]
 """
 
 import argparse
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import yaml
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.agent import ask
 
 ap = argparse.ArgumentParser()

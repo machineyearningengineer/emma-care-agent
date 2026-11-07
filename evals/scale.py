@@ -17,7 +17,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 SOURCE = Path(__file__).parent.parent / "sources" / "care_data.db"
 QUIET = ("Margaret Hughes", "Harold", "Jean Whitmore", "Patricia Lowe", "Stanley Grant")
 PLANTED = ("Alfred", "Doris", "Raymond", "Iris", "Cynthia")

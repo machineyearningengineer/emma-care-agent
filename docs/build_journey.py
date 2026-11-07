@@ -22,7 +22,6 @@ import yaml
 
 HERE = Path(__file__).parent
 ROOT = HERE.parent
-sys.path.insert(0, str(ROOT))
 PRIMARY = {"fr": "functional", "nfr": "nonfunctional"}
 MODULES = ("app.config", "app.db", "app.schema", "app.agent")
 

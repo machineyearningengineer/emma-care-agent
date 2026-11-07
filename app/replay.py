@@ -76,7 +76,4 @@ def record(questions: list[str]) -> None:
 
 
 if __name__ == "__main__" and sys.argv[1:] == ["record"]:
-    from dotenv import load_dotenv
-
-    load_dotenv()
     record(EXAMPLES)

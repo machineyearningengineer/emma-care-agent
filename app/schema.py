@@ -10,7 +10,8 @@ import functools
 import json
 import re
 
-from app.db import DB_PATH, connect
+from app.config import DB_PATH
+from app.db import connect
 
 SAMPLE_ROWS = 200  # rows sampled per table for value lists and JSON shapes
 MAX_LISTED = 40  # list a column's values only if it has this few distinct ones…

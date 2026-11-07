@@ -4,7 +4,7 @@ import json
 import re
 from pathlib import Path
 
-from app import agent
+from app import agent, contract
 from app.replay import EXAMPLES, REPLAYS, _key
 
 STATIC = Path(agent.__file__).parent / "static"
@@ -14,6 +14,14 @@ def _page_citation():
     """The page's citation pattern, read from app.js so the test can't drift from it."""
     src = (STATIC / "app.js").read_text()
     return re.compile(re.search(r"const CITE = /(.+)/gi;", src).group(1), re.I)
+
+
+def test_the_page_and_the_contract_agree_on_citations_and_the_gaps_heading():
+    assert _page_citation().pattern == contract.CITATION.pattern
+    page = (STATIC / "app.js").read_text()
+    assert "what i couldn['\u2019]?t determine" in page  # the page's copy of contract.UNKNOWNS
+    heading = "What I couldn't determine:"
+    assert heading in agent.SYSTEM and contract.UNKNOWNS.search(heading)
 
 
 def test_prompt_citation_format_is_what_the_page_links():

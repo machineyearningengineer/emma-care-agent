@@ -6,10 +6,13 @@ Everything else imports from here, so no module depends on another having loaded
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+DB_PATH = Path(os.environ.get("CARE_DB", Path(__file__).parent.parent / "sources" / "care_data.db"))
 
 MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")  # the app; evals default to a cheaper one
 FOLLOW_UP_MODEL = os.environ.get("FOLLOW_UP_MODEL", "gpt-5.4-mini")
