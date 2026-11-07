@@ -59,7 +59,7 @@ sample of managers' questions. Each has a trigger in the journey's "What breaks 
   repeats, and a scale check with about 200 people. It does not prove ranking or tone.
 - **What does a question cost?** About 3 to 5 model calls and 35k to 75k prompt tokens, about half of it
   served from cache.
-- **What breaks first?** Recall on varied real notes, then the 60k-character results, then one thread
+- **What breaks first?** Recall on varied real notes, then the 30k-character results, then one thread
   per live question.
 - **Privacy?** Names go to the model provider. Fine for synthetic data; production needs an agreement,
   pseudonymising or a self-hosted model.

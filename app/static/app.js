@@ -60,7 +60,8 @@ fetch("/api/meta").then((r) => r.json()).then((m) => {
   limits = m.limits; q.maxLength = limits.question_chars;
   if (m.names?.length) namesRe = new RegExp(`(?<![\\w])(${m.names.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w])`, "g");
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
-  $("asof").textContent = ` · records to ${day(m.to)}`;
+  const short = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+  $("asof").textContent = ` · Today is ${day(m.to)} · records from ${short.format(new Date(m.from.replace(" ", "T")))}`;
   for (const q of m.examples || []) {
     const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
     b.addEventListener("click", () => submit(q));
@@ -471,6 +472,7 @@ const sentenceAround = (cite) => {
   return (line?.textContent || "").replace(/\s+([.,;])/g, "$1").replace(/\s+/g, " ").trim();
 };
 const hm = (x) => x.toTimeString().slice(0, 5);
+const carerLine = (r) => `<span class="carer"><span>Carer</span> ${esc(r.carer || "unknown")}</span>`;
 const when = (a, b) => {
   const d = new Date(a.replace(" ", "T"));
   const e = b && new Date(b.replace(" ", "T"));
@@ -480,7 +482,7 @@ function renderRecord(r, claim) {
   const isVisit = r.kind === "visit";
   const label = isVisit ? "Visit" : esc(r.form || "Form");
   const head = isVisit
-    ? `<div class="rec-kind">Visit ${r.id}</div><h3>${esc(r.person || "")}</h3><div class="rec-meta">${when(r.start_time, r.end_time)} · carer ${esc(r.carer || "unknown")}${r.status === "Completed" ? "" : " · " + esc(r.status)}</div>`
+    ? `<div class="rec-kind">Visit ${r.id}</div><h3>${esc(r.person || "")}</h3><div class="rec-meta">${when(r.start_time, r.end_time)}${r.status === "Completed" ? "" : " · " + esc(r.status)}</div>${carerLine(r)}`
     : `<div class="rec-kind">${label} ${r.id}</div><h3>${esc(r.title || r.form || "Form")}</h3><div class="rec-meta">${r.person ? esc(r.person) + " · " : ""}created ${when(r.created_at)}</div>`;
   let body = claim?.length ? `<div class="rec-claim"><span>The answer says</span>${claim.map((c) => `<p>${esc(c)}</p>`).join("")}</div>` : "";
   if (isVisit) {
@@ -547,10 +549,10 @@ let popFor = null, popTimer = 0;
 const clip = (t, n) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
 function previewHtml(r) {
   if (r.kind === "visit") {
-    return `<strong>Visit ${r.id} · ${esc(r.person || "")}</strong><span>${when(r.start_time, r.end_time)} · carer ${esc(r.carer || "unknown")}</span><p>${esc(clip(r.note || "No note", 150))}</p>`;
+    return `<small>Visit ${r.id}</small><strong>${esc(r.person || "")}</strong><span>${when(r.start_time, r.end_time)}</span>${carerLine(r)}<p>${esc(clip(r.note || "No note", 150))}</p>`;
   }
   const first = (r.sections || []).flatMap((x) => x.items || []).find((i) => i.answer);
-  return `<strong>${esc(r.form || "Form")} ${r.id}${r.person ? " · " + esc(r.person) : ""}</strong><span>created ${when(r.created_at)}</span>${first ? `<p>${esc(clip(String(first.answer), 150))}</p>` : ""}`;
+  return `<small>${esc(r.form || "Form")} ${r.id}</small><strong>${esc(r.person || r.title || "")}</strong><span>created ${when(r.created_at)}</span>${first ? `<p>${esc(clip(String(first.answer), 150))}</p>` : ""}`;
 }
 function hidePop() { clearTimeout(popTimer); popFor = null; pop.hidden = true; }
 $("thread").addEventListener("mouseover", (e) => {

@@ -70,7 +70,7 @@ What we did:
 The numbers, and why:
 - 200 rows per query: Enough to read one person's notes for a fortnight. A bigger result is flagged as cut off, so the model narrows the query instead of guessing about the rest.
 - 500 characters per cell: A typical note is far shorter. Longer text is cut and marked, so one long field cannot fill the prompt.
-- 60,000 characters per result: About 15k tokens. This caps the whole result, so a wide query cannot flood the prompt. Results of 27k to 60k characters are the main input cost today.
+- 30,000 characters per result: About 8k tokens. This caps the whole result, so a wide query cannot flood the prompt. Halved from 60k after an audit: the medication question read 75-83k characters instead of 145k, used 72-78k prompt tokens instead of 114k and ran in 11s instead of 15s, and still found visit 293 and form 22. The 42 required facts in the evals still passed.
 - 2.0 second query limit: SQL on this data takes milliseconds, so 2 seconds only stops a runaway statement.
 - 30 people in the roster: The roster in the prompt costs about 30 tokens a person. Above this it switches off and the model queries instead.
 
@@ -232,7 +232,7 @@ Layer: Agent. Built in step 4; changed in steps 4, 7, 10, 14, 15.
 
 ### Model
 
-Layer: Agent. Built in step 4; changed in steps 4, 12, 13.
+Layer: Agent. Built in step 4; changed in steps 4, 12, 13, 18.
 
 - What it does: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop. One question makes 3 to 5 calls to gpt-5.5, each carrying the same system prompt, the last 6 messages, the question and everything read so far, plus one short call to gpt-5.4-mini after the answer.
 - Always true: The prompt carries a version hash. It is logged and returned with every answer.
@@ -264,7 +264,7 @@ Layer: Data. Built in step 1; changed in steps 1, 3.
 
 - What it does: SQLite itself refuses anything except bounded reads. The prompt is never the safety.
 - Always true: The file is opened mode=ro with query_only on, an authorizer allows only reads, and each call runs one statement.
-- Limits: 200 rows, 500 characters per cell, 60,000 characters per result; 2.0 second query deadline; Strings or blobs over 1,000,000 bytes cannot be built
+- Limits: 200 rows, 500 characters per cell, 30,000 characters per result; 2.0 second query deadline; Strings or blobs over 1,000,000 bytes cannot be built
 - Meets: nfr-safety (Read-only); nfr-cost (Bounded cost); fr-refuse (Refuses writes)
 - Trade-offs:
   - Authorizer rules instead of a regex on SQL. It costs a short allow-list to maintain, and it cannot be bypassed by odd syntax.
@@ -331,7 +331,7 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 3. Schema and glossary: The agent builds the prompt. It includes the schema, derived from the live database, and the reference date, so "this week" means the 7 days up to that date.
 4. Model: The model plans a query. It filters by date window and form type before it reads any notes.
 5. run_sql tool: The model calls run_sql with a SELECT. The page shows the SQL as it runs.
-6. Read-only guard: SQLite runs the query read-only against the views and the full-text index. The result stops at 200 rows and 60,000 characters.
+6. Read-only guard: SQLite runs the query read-only against the views and the full-text index. The result stops at 200 rows and 30,000 characters.
 7. Model: The rows go back as text. The model reads them, runs more queries if it needs to, and writes the answer with citations such as (visit 293).
 8. Page: The answer streams in. Below it the page shows a box of what the records cannot show, and up to 3 follow-up chips.
 9. Record lookup: Priya taps (visit 293). The page fetches that visit by id and shows the carer, the time, the status and the note.
@@ -496,6 +496,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: Run for one person, all four answered in 6 to 10 seconds in 2 steps. "What changed since last week" described changes inside the week, so the question now says "this week compared with the week before", and the answer then compared both weeks.
 - Turned down: A model that writes drill-downs for each name: another call per tap for questions that barely vary. Sending the question on tap: the manager chooses what to ask.
 - Breaks next: The four are the same for everyone. A person with no safeguarding history still gets that question, and the answer is a short no.
+
+### Step 18, 01:20 on 7 Nov: Read less, cite plainly
+
+- Before: the medication question read 145k characters of results and 114k prompt tokens in 11 queries
+- After: results cap at 30k characters; the prompt says never to write citation ranges
+- Why: An audit of the SQL the model chose showed it writes sound queries but reads wide, because a text search over every comment returns far more than it needs. Capping the result makes it narrow the query instead, at no loss of facts.
+- Found: A view of de-duplicated comments looked promising but removed almost nothing (572 of 1135 were distinct after normalising), so it was dropped. Repeated evals then caught "(visits 192-210)", which the page cannot link, so the prompt now forbids ranges and the eval check fails on them.
+- Turned down: A domain library of ready-made queries: it hides the schema from the model and grows with every new question. An explicit planning step: the roster already removes the counting query, and the first query is the plan.
+- Breaks next: A cap this size can hide a relevant row in a very wide query. The truncation warning tells the model, and it must narrow and re-run before clearing anyone.
 
 ## What comes next
 

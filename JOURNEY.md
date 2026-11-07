@@ -109,7 +109,7 @@ exists) and #10 (the stated date range ends on 16 Nov).
 **Why:** it can't go stale, and it showed the model that every status is `Completed`. **Turned down:** a `describe_schema` tool, which costs a round trip every question.
 
 ### 3. Results are bounded, and cuts are loud (17:02, 17:12)
-**A → B:** unbounded results → 200 rows, 500 characters per cell and 60k per result, with a `truncated` flag and a warning.
+**A → B:** unbounded results → 200 rows, 500 characters per cell and 30k per result (halved from 60k after an audit of what the model reads), with a `truncated` flag and a warning.
 **Why:** 200 rows of long notes is about 25k tokens per call. **A review found three gaps:** a 400 MB `zeroblob`, cut cells with no flag, and a blob that crashed `run_sql`. Each was fixed. A hard timeout on native calls would need a subprocess, which we skipped.
 
 ### 4. The loop and its trace (17:04)

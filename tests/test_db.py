@@ -45,11 +45,16 @@ def test_timeout():
 
 
 def test_row_cap_and_cell_cap():
-    r = db.run_sql("SELECT a.value FROM visits v, json_each(v.activities) a")
+    r = db.run_sql("SELECT v.id FROM visits v, json_each(v.activities) a")  # narrow: row cap first
     assert r["row_count"] == db.MAX_ROWS and r["truncated"] is True
     r = db.run_sql("SELECT form_data FROM forms LIMIT 1")
     assert r["rows"][0][0].endswith("…[truncated]")
     assert r["cells_truncated"] is True and "json_extract" in r["warning"]
+
+
+def test_result_size_cap_stops_a_wide_query():
+    r = db.run_sql("SELECT note FROM visit_notes")
+    assert r["truncated"] is True and r["row_count"] < db.MAX_ROWS
 
 
 def test_error_is_returned_not_raised():

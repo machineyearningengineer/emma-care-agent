@@ -16,7 +16,7 @@ DB_PATH = Path(os.environ.get("CARE_DB", Path(__file__).parent.parent / "sources
 
 MAX_ROWS = 200
 MAX_CELL_CHARS = 500
-MAX_RESULT_CHARS = 60_000  # whole result, so one query can't flood the prompt
+MAX_RESULT_CHARS = 30_000  # whole result, so one query can't flood the prompt
 TIMEOUT_S = 2.0
 MAX_VALUE_BYTES = 1_000_000  # any string/blob SQLite builds; the timeout can't stop one native call
 

@@ -104,7 +104,7 @@ thinking:
       - what: "${MAX_CELL_CHARS} characters per cell"
         why: "A typical note is far shorter. Longer text is cut and marked, so one long field cannot fill the prompt."
       - what: "${MAX_RESULT_CHARS} characters per result"
-        why: "About 15k tokens. This caps the whole result, so a wide query cannot flood the prompt. Results of 27k to 60k characters are the main input cost today."
+        why: "About 8k tokens. This caps the whole result, so a wide query cannot flood the prompt. Halved from 60k after an audit: the medication question read 75-83k characters instead of 145k, used 72-78k prompt tokens instead of 114k and ran in 11s instead of 15s, and still found visit 293 and form 22. The 42 required facts in the evals still passed."
       - what: "${TIMEOUT_S} second query limit"
         why: "SQL on this data takes milliseconds, so 2 seconds only stops a runaway statement."
       - what: "${MAX_ROSTER} people in the roster"
@@ -546,6 +546,17 @@ steps:
     found: Run for one person, all four answered in 6 to 10 seconds in 2 steps. "What changed since last week" described changes inside the week, so the question now says "this week compared with the week before", and the answer then compared both weeks.
     rejected: ["A model that writes drill-downs for each name: another call per tap for questions that barely vary.", "Sending the question on tap: the manager chooses what to ask."]
     breaks: The four are the same for everyone. A person with no safeguarding history still gets that question, and the answer is a short no.
+  - id: 18
+    when: "01:20"
+    title: Read less, cite plainly
+    commits: []
+    nodes: [model]
+    A: the medication question read 145k characters of results and 114k prompt tokens in 11 queries
+    B: results cap at 30k characters; the prompt says never to write citation ranges
+    why: An audit of the SQL the model chose showed it writes sound queries but reads wide, because a text search over every comment returns far more than it needs. Capping the result makes it narrow the query instead, at no loss of facts.
+    found: A view of de-duplicated comments looked promising but removed almost nothing (572 of 1135 were distinct after normalising), so it was dropped. Repeated evals then caught "(visits 192-210)", which the page cannot link, so the prompt now forbids ranges and the eval check fails on them.
+    rejected: ["A domain library of ready-made queries: it hides the schema from the model and grows with every new question.", "An explicit planning step: the roster already removes the counting query, and the first query is the plan."]
+    breaks: A cap this size can hide a relevant row in a very wide query. The truncation warning tells the model, and it must narrow and re-run before clearing anyone.
 
 next:
   - id: n1

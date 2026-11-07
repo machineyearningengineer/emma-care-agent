@@ -89,7 +89,7 @@ distinct carers, and text in the database is data, not instructions.
   refused by SQLite itself, not caught by a regex.
 - One statement per call (enforced by `sqlite3`), and values go in as `?` parameters.
 - A 2-second deadline, enforced by a progress handler, stops runaway queries.
-- Results are capped at 200 rows, 500 characters per cell and 60k characters in total.
+- Results are capped at 200 rows, 500 characters per cell and 30k characters in total.
   A truncated result carries a warning telling the model it hasn't seen the rest, so it
   narrows instead of concluding.
 - SQL errors go back to the model as text so it can fix its own query, and the loop never
