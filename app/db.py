@@ -24,16 +24,52 @@ MAX_VALUE_BYTES = 1_000_000  # any string/blob SQLite builds; the timeout can't 
 _ALLOWED = {sqlite3.SQLITE_READ, sqlite3.SQLITE_SELECT, sqlite3.SQLITE_FUNCTION, sqlite3.SQLITE_RECURSIVE}
 
 
+# A flat read model over the nested JSON, and a full-text index over every piece of free text.
+# They live in the connection's TEMP database (the source file stays untouched) and are made
+# before the connection is locked. A production database would hold them as real views and a
+# persistent FTS index kept in sync by triggers.
+_READ_MODEL = """
+CREATE TEMP VIEW visit_notes AS
+  SELECT v.id AS visit_id, v.service_user_id AS person_id, su.name AS person, c.name AS carer,
+         v.start_time, v.note
+  FROM visits v LEFT JOIN service_users su ON su.id = v.service_user_id
+  LEFT JOIN carers c ON c.id = v.carer_id WHERE v.note IS NOT NULL AND v.note != '';
+CREATE TEMP VIEW activity_comments AS
+  SELECT v.id AS visit_id, v.service_user_id AS person_id, su.name AS person, v.start_time,
+         json_extract(a.value, '$.name') AS activity, json_extract(a.value, '$.status') AS status,
+         json_extract(a.value, '$.comment') AS comment
+  FROM visits v LEFT JOIN service_users su ON su.id = v.service_user_id, json_each(v.activities) a
+  WHERE json_extract(a.value, '$.comment') IS NOT NULL AND json_extract(a.value, '$.comment') != '';
+CREATE TEMP VIEW form_answers AS
+  SELECT f.id AS form_id, fc.name AS form, f.service_user_id AS person_id, su.name AS person,
+         f.created_at, json_extract(s.value, '$.section') AS section,
+         json_extract(i.value, '$.question') AS question, json_extract(i.value, '$.answer') AS answer
+  FROM forms f LEFT JOIN form_configs fc ON fc.id = f.form_config_id
+  LEFT JOIN service_users su ON su.id = f.service_user_id,
+  json_each(f.form_data) s, json_each(s.value, '$.items') i;
+CREATE VIRTUAL TABLE temp.search
+  USING fts5(source UNINDEXED, id UNINDEXED, person UNINDEXED, at UNINDEXED, text);
+INSERT INTO temp.search SELECT 'visit', visit_id, person, start_time, note FROM visit_notes;
+INSERT INTO temp.search SELECT 'visit', visit_id, person, start_time, comment FROM activity_comments;
+INSERT INTO temp.search SELECT 'form', form_id, person, created_at, question || ': ' || answer
+  FROM form_answers WHERE answer IS NOT NULL;
+"""
+
+
 def connect(path: Path = DB_PATH) -> sqlite3.Connection:
-    """Open the file read-only at the OS level, then lock the connection to reads."""
+    """Open the file read-only at the OS level, add the read model, then lock the connection to reads."""
     con = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    con.executescript(_READ_MODEL)
     con.execute("PRAGMA query_only = ON")
     con.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MAX_VALUE_BYTES)
     return con
 
 
-def _authorizer(action, *_):
-    return sqlite3.SQLITE_OK if action in _ALLOWED else sqlite3.SQLITE_DENY
+def _authorizer(action, arg1, *_):
+    # FTS5 asks for PRAGMA data_version while it searches; no other pragma is ever allowed.
+    if action in _ALLOWED or (action == sqlite3.SQLITE_PRAGMA and arg1 == "data_version"):
+        return sqlite3.SQLITE_OK
+    return sqlite3.SQLITE_DENY
 
 
 def _cell(value) -> tuple[object, bool]:

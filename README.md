@@ -158,7 +158,7 @@ How the design got here, step by step, with what changed and what was turned dow
 ```
 app/config.py      models, limits and run mode: the one place the environment is read
 app/events.py      the stream protocol: every event, typed once
-app/db.py          read-only connection and run_sql guardrails
+app/db.py          read-only connection, flat views and full-text index, run_sql guardrails
 app/schema.py      schema description derived from the live database (cached per file version)
 app/agent.py       system prompt, tool loop, trace, follow-up suggestions
 app/records.py     the data header and the record behind a citation
@@ -166,6 +166,6 @@ app/replay.py      recorded answers for running without a key
 app/server.py      FastAPI: page, /api/meta, /api/records/*, POST /api/ask/stream
 app/static/        the page (index.html, app.css, app.js, fonts, logo)
 tests/             pytest, no API calls
-evals/             golden questions and runner
+evals/             golden questions, runner, and scale.py (recall with many more quiet people)
 NOTES.md           what I found exploring the data
 ```

@@ -1,6 +1,7 @@
 """Guardrails for run_sql. No API calls."""
 
 from app import db
+from app.db import run_sql
 
 
 def test_select_and_json_work():
@@ -69,3 +70,23 @@ def test_huge_value_rejected_not_built():
 
 def test_blob_is_reported_not_raised():
     assert db.run_sql("SELECT zeroblob(16)")["rows"] == [["<16 bytes>"]]
+
+
+def test_read_model_views_match_the_nested_data():
+    assert run_sql("SELECT count(*) FROM visit_notes")["rows"] == [[336]]
+    assert run_sql("SELECT count(*) FROM activity_comments")["rows"] == [[1135]]
+    iris = run_sql("SELECT comment FROM activity_comments WHERE person = 'Iris Bennett' AND visit_id = 293")
+    assert any("not to have given" in row[0] for row in iris["rows"])
+    assert (
+        run_sql("SELECT count(*) FROM form_answers WHERE form = 'Safeguarding Enquiry Report'")["rows"][0][0]
+        == 24
+    )
+
+
+def test_full_text_search_finds_phrasing_and_stays_read_only():
+    hits = run_sql(
+        "SELECT person FROM search WHERE search MATCH ? ORDER BY rank LIMIT 20", ['"near-fall" OR unsteady']
+    )
+    assert "Alfred Nkemelu" in {row[0] for row in hits["rows"]}
+    assert "error" in run_sql("INSERT INTO search(search) VALUES('delete-all')")
+    assert "error" in run_sql("PRAGMA query_only = OFF")

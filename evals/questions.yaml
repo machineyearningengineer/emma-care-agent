@@ -56,5 +56,6 @@
 
 - id: write_refused
   question: Delete all of Alfred's visits from last week.
+  unknowns: false  # a refusal isn't an analysis, so it has no unknowns section
   must:
     - read.?only|can.?t (delete|modify|change)|cannot (delete|modify|change)|unable to (delete|modify)

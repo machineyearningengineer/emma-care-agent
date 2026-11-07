@@ -72,18 +72,47 @@ Replay mode records real answers so the app runs with no key.
 **A → B:** unlimited live questions → at most 8 at once. The ninth gets "Busy, try again" instead of queueing, so a burst can't run up cost or hold every thread.
 **Turned down:** a queue and per-user quotas. That needs identity, which this app doesn't have.
 
+### 11. A flat read model, search, and a scale check (19:00)
+**A → B:** nested `json_each` queries, and the ambiguous-column retries they caused → three views (`visit_notes`, `activity_comments`, `form_answers`) with the person already joined, and an FTS5 index (`search`) over every note, comment and answer. Both are built per connection in SQLite's temp database, so the source file stays untouched, and both go through the same one tool. A connection builds them in about 6 ms.
+**Guardrail check:** FTS5 needs `PRAGMA data_version`, so the authorizer allows that one pragma and still refuses every other. The tests prove the index can't be written to.
+**Eval on gpt-5.4-mini, 2 runs each:** 14/16, and the 2 misses were my new "unknowns section" check applying to a refusal. Fixed by making that check per case. The other 7 questions passed 2/2.
+**Scale check (`evals/scale.py`):** with 40 times as many quiet people (about 205 people, 6.9k visits), the broad question still found all 5 people with real concerns, in 13 s, with a peak context of 32k tokens. One caveat: the clones repeat the same text, so grouping by comment collapses them. Real notes vary more, so this is an easier test than production.
+**Turned down:** a separate search tool (it would change the event protocol for no gain).
+
+## What Anthropic's memory write-up changes
+
+[Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)
+splits memory into transcripts (the searchable ground truth), notes written during a session,
+derived representations such as per-subject wikis, a small always-loaded index, and an offline
+"dreaming" pass that keeps the layers in step. Mapped to us:
+
+| Their layer | Ours today | What we take |
+|---|---|---|
+| Transcripts | The visits and forms, with citations to the record | Keep them as ground truth, and never answer from a derived page without the source |
+| Injected context | The schema and glossary in the system prompt | Keep it small and index-like; they found longer instruction files reduce adherence |
+| Representations | None | The shape for "tags at write time": one page per person, one writer per page, verified facts with the record id that proves them, key phrases quoted not paraphrased |
+| Dreaming | None | A background job that rebuilds a person's page when their records change, aimed at the volatile part (last 2 weeks) |
+
+Their results point the same way as ours. A wiki plus search beat search alone (61% against
+53%), most on questions that combine many documents (87% against 73%), and little on
+single-document lookups. "Who needs attention" is exactly a combine-many-documents question.
+Their failure modes are our risks: a wrong note trusted later, stale pages, an over-large wiki.
+So pages must carry provenance and a date, and the agent must treat them as leads.
+
+Not built, because at 10 people reading the raw records is cheaper and safer than maintaining
+pages. The scale check above is the trigger: when it stops finding everyone, build the pages.
+
 ## Next, in the order we'd do it
 
 Each step is **not built**. The order follows what would break first.
 
 | # | Break at scale | A → B | Why |
 |---|---|---|---|
-| 1 | Missed people give no error | counted per answer → a recall eval on a 100x synthetic set | The logs now count cut-off results, but recall itself still has to be measured against known answers |
-| 2 | SQL mistakes and scans | nested JSON → a flattened view (one row per note or comment) plus the README's indexes | Fewer retries, fewer steps |
-| 3 | Free text is a scan | `LIKE` → FTS5, returning ids and snippets | Exact names and phrases, cheap and explainable |
-| 4 | Broad questions hit the cap | the model reads a slice → tags added when records are written (fall, intake, medication, mood), ranked in SQL | An index to narrow, never to answer: the agent still reads the raw text |
-| 5 | Latency and context length | one long sequential loop → shortlist with SQL, then one small context per person in parallel, then rank | Many small contexts beat one large one |
-| 6 | Phrasing misses remain | keywords → embeddings combined with FTS5 | Only if step 1 shows misses of this kind |
+| 1 | Missed people give no error | recall at 40x quiet people is 5/5 → the same check with varied text and a real-sized source | The logs now count cut-off results, but recall itself still has to be measured against known answers |
+| 2 | Scans on a big source | per-connection temp views and index → real views, a persistent FTS index kept in sync by triggers, and the README's indexes | Done in the temp database today; production needs it stored |
+| 3 | Broad questions hit the cap | the model reads a slice → one page per person, rebuilt offline, with record ids as proof and a date, ranked in SQL | A lead for the agent, never the answer: it still reads the raw text |
+| 4 | Latency and context length | one long sequential loop → shortlist with SQL, then one small context per person in parallel, then rank | Many small contexts beat one large one |
+| 5 | Phrasing misses remain | keywords → embeddings combined with FTS5 | Only if step 1 shows misses of this kind |
 
 ## Transcripts
 

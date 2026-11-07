@@ -27,7 +27,12 @@ def check(case: dict, answer: str) -> list[str]:
     missing = [p for p in case.get("must", []) if not re.search(p, answer, re.I)]
     present = [f"NOT {p}" for p in case.get("must_not", []) if re.search(p, answer, re.I)]
     # The page folds this section into its own box, so every answer must have it.
-    unknowns = [] if re.search(r"what i couldn.?t determine", answer, re.I) else ["unknowns section"]
+    needs_unknowns = case.get("unknowns", True)
+    unknowns = (
+        []
+        if not needs_unknowns or re.search(r"what i couldn.?t determine", answer, re.I)
+        else ["unknowns section"]
+    )
     return missing + present + unknowns
 
 

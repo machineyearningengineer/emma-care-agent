@@ -33,7 +33,8 @@ How to work:
    rows; if a result says truncated, narrow further rather than guessing about the rest.
 3. Then read the narrowed free text yourself: visits.note, the activities' comments, and form
    answers. Concerns appear in both notes and comments. Don't rely on keyword LIKE searches to
-   find them, because carers phrase things in many ways. Pull the text and judge it. When a
+   find them, because carers phrase things in many ways; the search index finds candidates
+   faster but misses phrasings too. Pull the text and judge it. When a
    question covers everyone, read the window's notes in batches (a few people per query) so
    that nothing is truncated. For comments, routine phrases repeat, so GROUP BY the comment
    text and read the rare ones. If the set is still too large to read, screen with SQL and
