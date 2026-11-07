@@ -6,3 +6,8 @@ __pycache__/
 .DS_Store
 evals/last_run.json
 *.egg-info/
+docs/film/seg/
+docs/film/silent.mp4
+docs/film/qa/
+docs/film/audio/
+docs/film/node_modules

@@ -6,8 +6,9 @@ One path, in order. Stop after any step; each one stands alone.
 
 1. **Watch it work (3 min).** `uv run uvicorn app.server:app`, open http://localhost:8000, ask
    "Who needs my attention this week?" Tap a citation. Tap a name.
-2. **Watch one question go end to end (4 min).** Play `docs/media/flow.mp4` (narrated, animated, ends with what
-   breaks first), or step through `docs/flow.html`: the same flow with the real data at each step.
+2. **Watch the film (11 min).** Play `docs/media/flow.mp4`: four parts, one question end to end, every limit and
+   why, what is checked and what is fragile, what breaks first and the fix for each. Or step through
+   `docs/flow.html`: the same flow with the real data at each step.
 3. **Straight line and citations (5 min).** The first two sections of `docs/journey.html`: the same flow in
    words, then how a citation gets from a database row to a button.
 4. **The short version (5 min).** Next section: every decision with its answer, evidence and
@@ -17,7 +18,7 @@ One path, in order. Stop after any step; each one stands alone.
 7. **Run the demo (5 min).** `DEMO.md`: happy path, medium path, honest negative, trap, refusal.
 8. **How it was built (optional).** The step cards on the journey page, or `JOURNEY.md` as plain text.
 
-If you only have 5 minutes: steps 1 and 2.
+If you only have 5 minutes: step 1, then part one of the film.
 
 ## One question, in a straight line
 
@@ -61,6 +62,7 @@ sentence it supports. Full chain: journey page, "How citations work, end to end"
 | Probe questions to read by hand | `uv run python evals/probes.py` |
 | Lint | `uv run ruff check . && uv run ruff format .` |
 | Rebuild the journey page | `uv run python docs/build_journey.py` |
+| Re-render the film | `cd docs/film && node render.mjs video silent.mp4` (playwright-core, Chrome, ffmpeg); narration: `narrate.py` |
 
 ## The other files, one line each
 
