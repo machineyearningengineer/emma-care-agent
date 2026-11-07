@@ -45,7 +45,7 @@ A care manager asks a question in plain language. An agent answers it by queryin
 
 ### What is the agent, and why not a library of ready-made queries?
 
-A model, one read-only tool (run_sql) and a loop. The schema, roster and glossary are derived from the data and put in the prompt.
+A model, one read-only tool (run_sql) and a loop. The schema and roster are derived from the data; a short hand-written glossary adds what the data cannot show. All three go in the prompt.
 
 - Evidence: Every golden question and rephrasing passes (42 of 42 on gpt-5.5). A ready-made query per question would hide the schema and need a new function for each new question.
 - Trade-off: The model can write a wasteful query. Caps and the prompt keep that cheap instead of a fixed set of queries preventing it.
@@ -223,7 +223,7 @@ The tool and the data it can reach. There is one read-only SQL tool, and we tell
 
 What we did:
 - run_sql, one read-only SELECT per call
-- A schema, a roster of people and a glossary, all derived from the data
+- A schema and a roster of people derived from the data, plus a short hand-written glossary
 - Views that join names to notes, and a full-text search index
 - Caps on rows, cell length and result size
 
@@ -370,7 +370,7 @@ Layer: Agent. Built in step 2; changed in steps 2, 14.
 - Trade-offs:
   - Derived on load, not written by hand. It cannot go stale, and sampling can miss rare values.
   - We turned down a describe_schema tool, which would add a round trip to every question.
-- Breaks first: Sampling misses rare values and rare JSON paths in a big table.
+- Breaks first: Sampling misses rare values and rare JSON paths in a big table. The glossary is the one hand-written part, so it is the part that goes stale. It names facts about this dataset (no planned times, safeguarding names inside form answers, the view names), and nothing checks them if the source changes.
 - At scale: Stratified sampling, or a stored profile refreshed offline.
 - Next steps touching it: n3 One page per person
 
