@@ -313,7 +313,6 @@ dialog.record::backdrop { background: rgb(0 0 0 / .4); }
 @media (prefers-reduced-motion: reduce) { .follow:not([hidden]), .follow .suggestion, .follow button { animation: none; } }
 /* Only the newest answer offers follow-ups: the conversation is a line, not a tree. */
 .turn:not(:last-child) .follow { display: none; }
-.jump { position: fixed; }
 /* While work continues below, the arrow becomes three waving dots. */
 .jump .dots { display: none; gap: 3px; }
 .jump .dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--primary); animation: wave 1s ease-in-out infinite; }
@@ -349,4 +348,3 @@ button.person:hover { color: var(--primary); text-decoration: underline dotted; 
 .cite-pop small { font: 650 11px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--primary); }
 .cite-pop strong { font-size: 1.05em; margin-top: 1px; }
 .cite-pop .carer { margin-top: 0; }
-.cite-pop .carer { color: var(--text-2); }

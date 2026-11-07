@@ -2,7 +2,8 @@ const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtInt = (n) => Number(n).toLocaleString();
-let limits = { question_chars: 2000, history_messages: 6 };  // replaced by /api/meta
+let limits = null;   // from /api/meta: the server owns the numbers
+const q = $("q");
 const turns = [];     // one object per question: its state, data and nodes
 let controller = null, seq = 0;
 
@@ -61,11 +62,7 @@ fetch("/api/meta").then((r) => r.json()).then((m) => {
   if (m.names?.length) namesRe = new RegExp(`(?<![\\w])(${m.names.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w])`, "g");
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
   $("asof").textContent = ` · Today is ${day(m.to)}`;
-  for (const q of m.examples || []) {
-    const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
-    b.addEventListener("click", () => submit(q));
-    $("suggestions").append(b);
-  }
+  for (const example of m.examples || []) $("suggestions").append(suggestion(example));
 }).catch(() => { $("facts").textContent = "Couldn't reach the server."; });
 
 /* ---------- Scrolling: follow new text until the reader scrolls up, and again once they're back at the bottom ---------- */
@@ -88,7 +85,6 @@ const keepUp = () => {
 $("jump").addEventListener("click", () => { follow = true; scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); });
 
 /* ---------- Composer ---------- */
-const q = $("q");
 const grow = () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 176) + "px"; };
 q.addEventListener("input", () => { grow(); if (!controller) $("send").disabled = !q.value.trim(); });
 q.addEventListener("keydown", (e) => {
@@ -113,7 +109,7 @@ function setBusy(busy) {
 const history = () => turns
   .filter((t) => t.state === "done")
   .flatMap((t) => [{ role: "user", content: t.question }, { role: "assistant", content: t.text }])
-  .slice(-limits.history_messages);
+  .slice(-(limits?.history_messages ?? 0));
 
 function apply(t, ev) {
   switch (ev.type) {
@@ -128,6 +124,13 @@ function apply(t, ev) {
   }
 }
 
+const suggestion = (text) => {  // a question that asks itself when tapped
+  const b = el("button", "suggestion"); b.type = "button"; b.textContent = text;
+  b.addEventListener("click", () => submit(text));
+  return b;
+};
+const firstSqlLine = (sql) => (sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || sql).trim();
+const turnPreview = (t) => snippet(t.text) || (t.state === "failed" ? "Failed" : t.state === "stopped" ? "Stopped" : "Answering…");
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const queriesOf = (n) => (n === 1 ? "1 query" : `${n} queries`);
 const KIND = { v: "visit", f: "form" };
@@ -189,7 +192,7 @@ function render(t) {
     const doing = t.state === "starting" ? "Reading the schema" : "Working";
     t.ui.status.txt.textContent = `${doing} · ${n ? queriesOf(n) + " · " : ""}${secs}s`;
     const last = t.queries.at(-1);
-    t.ui.status.last.textContent = last ? (last.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || last.sql).trim() : "";
+    t.ui.status.last.textContent = last ? firstSqlLine(last.sql) : "";
   }
   t.queries.forEach((qy, i) => stepNode(t, qy, i));
   advance(t);
@@ -207,9 +210,7 @@ function render(t) {
   t.ui.follow.hidden = !(t.state === "done" && !revealing(t) && t.suggestions?.length);
   if (!t.ui.follow.hidden && !t.ui.follow.querySelector("button")) {
     for (const text of t.suggestions) {
-      const b = el("button", "suggestion"); b.type = "button"; b.textContent = text;
-      b.addEventListener("click", () => submit(text));
-      t.ui.follow.append(b);
+      t.ui.follow.append(suggestion(text));
     }
   }
 }
@@ -296,8 +297,7 @@ function stepNode(t, qy, i) {
   let li = t.ui.steps.children[i];
   if (!li) {
     li = el("li", "step");
-    const first = qy.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || qy.sql;
-    li.innerHTML = `<details><summary><span class="dot"></span><span class="sql-line">${esc(first.trim())}</span><span class="step-meta"></span></summary>
+    li.innerHTML = `<details><summary><span class="dot"></span><span class="sql-line">${esc(firstSqlLine(qy.sql))}</span><span class="step-meta"></span></summary>
       <pre>${esc(qy.sql.trim())}${qy.params?.length ? "\n-- params: " + esc(JSON.stringify(qy.params)) : ""}</pre></details>`;
     t.ui.steps.append(li);
   }
@@ -347,7 +347,7 @@ function renderNav() {
     return b;
   }));
   $("sheetList").replaceChildren(...turns.map((t, i) => {
-    const b = el("button", null, `<strong>${esc(t.question)}</strong><span>${esc(snippet(t.text) || (t.state === "failed" ? "Failed" : t.state === "stopped" ? "Stopped" : "Answering…"))}</span>`);
+    const b = el("button", null, `<strong>${esc(t.question)}</strong><span>${esc(turnPreview(t))}</span>`);
     b.type = "button"; b.addEventListener("click", () => go(i));
     return b;
   }));
@@ -355,7 +355,7 @@ function renderNav() {
 }
 function showPeek(tick, t) {
   peek.querySelector("strong").textContent = t.question;
-  peek.querySelector("span").textContent = snippet(t.text) || (t.state === "failed" ? "Failed" : t.state === "stopped" ? "Stopped" : "Answering…");
+  peek.querySelector("span").textContent = turnPreview(t);
   const r = tick.getBoundingClientRect();
   peek.style.left = `${r.right + 18}px`;
   peek.style.top = `${Math.max(12, Math.min(innerHeight - 140, r.top - 28))}px`;
@@ -478,12 +478,17 @@ const when = (a, b) => {
   const e = b && new Date(b.replace(" ", "T"));
   return `${d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, ${hm(d)}${e ? "–" + hm(e) : ""}`;
 };
+// Who, when and by whom: the facts at the top of a record, shared by the dialog and the hover preview.
+function recordHead(r) {
+  if (r.kind === "visit") {
+    return { kind: `Visit ${r.id}`, title: esc(r.person || ""), meta: when(r.start_time, r.end_time) + (r.status === "Completed" ? "" : " · " + esc(r.status)), carer: carerLine(r) };
+  }
+  return { kind: `${esc(r.form || "Form")} ${r.id}`, title: esc(r.title || r.form || "Form"), meta: (r.person ? esc(r.person) + " · " : "") + "created " + when(r.created_at), carer: "" };
+}
 function renderRecord(r, claim) {
   const isVisit = r.kind === "visit";
-  const label = isVisit ? "Visit" : esc(r.form || "Form");
-  const head = isVisit
-    ? `<div class="rec-kind">Visit ${r.id}</div><h3>${esc(r.person || "")}</h3><div class="rec-meta">${when(r.start_time, r.end_time)}${r.status === "Completed" ? "" : " · " + esc(r.status)}</div>${carerLine(r)}`
-    : `<div class="rec-kind">${label} ${r.id}</div><h3>${esc(r.title || r.form || "Form")}</h3><div class="rec-meta">${r.person ? esc(r.person) + " · " : ""}created ${when(r.created_at)}</div>`;
+  const h = recordHead(r);
+  const head = `<div class="rec-kind">${h.kind}</div><h3>${h.title}</h3><div class="rec-meta">${h.meta}</div>${h.carer}`;
   let body = claim?.length ? `<div class="rec-claim"><span>The answer says</span>${claim.map((c) => `<p>${esc(c)}</p>`).join("")}</div>` : "";
   if (isVisit) {
     body += `<h4>Visit note, as recorded</h4><blockquote>${esc(r.note || "No note")}</blockquote>`;
@@ -517,7 +522,25 @@ themeBtn.addEventListener("click", () => {
 });
 showTheme();
 
-/* ---------- Drill-down: a name offers a few fixed questions. Choosing one asks it, like the "Ask next" chips. ---------- */
+/* ---------- Floating layers: the name menu and the citation preview ---------- */
+// One placement rule for both: below the anchor if it fits above the composer, else above if there is more room,
+// kept GUTTER px inside the window.
+const GUTTER = 8, GAP = 6;
+function place(layer, anchor, { centered = false } = {}) {
+  const a = anchor.getBoundingClientRect(), w = layer.offsetWidth, h = layer.offsetHeight;
+  const floor = Math.min(innerHeight, $("form").getBoundingClientRect().top) - GUTTER;
+  const below = floor - a.bottom - GAP, above = a.top - GAP - GUTTER;
+  const up = h > below && above > below;
+  const want = centered ? a.left + a.width / 2 - w / 2 : a.left;
+  layer.style.left = `${Math.max(GUTTER, Math.min(want, innerWidth - w - GUTTER))}px`;
+  layer.style.top = `${up ? Math.max(GUTTER, a.top - GAP - h) : a.bottom + GAP}px`;
+}
+const hideFloating = () => { hideMenu(); hidePop(); };
+addEventListener("click", (e) => { if (!e.target.closest(".person, .person-menu")) hideMenu(); hidePop(); });
+addEventListener("keydown", (e) => { if (e.key === "Escape") hideFloating(); });
+addEventListener("scroll", hideFloating, { passive: true });
+
+/* A name offers a few fixed questions. Choosing one asks it, like the "Ask next" chips. */
 const DRILLS = [
   (n) => `How has ${n} been this week?`,
   (n) => `What changed for ${n} this week compared with the week before?`,
@@ -534,42 +557,59 @@ function showPersonMenu(anchor) {
     return b;
   }));
   menu.hidden = false;
-  const r = anchor.getBoundingClientRect(), w = menu.offsetWidth, h = menu.offsetHeight;
-  menu.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
-  menu.style.top = `${r.bottom + h + 12 > innerHeight && r.top > h + 12 ? r.top - h - 6 : r.bottom + 6}px`;
+  place(menu, anchor);
   menu.querySelector("button").focus();
 }
-addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".person, .person-menu")) hideMenu(); });
-addEventListener("keydown", (e) => { if (e.key === "Escape") hideMenu(); });
-addEventListener("scroll", hideMenu, { passive: true });
 
-/* ---------- Hover preview: who, when and the first words, before anyone taps ---------- */
+/* Hover (or keyboard focus) on a citation: who, when and the first words, before anyone taps.
+   Timing: open after the pointer has rested SETTLE_MS (a pointer passing over a line opens nothing), switch at once
+   between neighbours while one is open or just closed, close LEAVE_MS after leaving, and never open while scrolling. */
+const SETTLE_MS = 150, LEAVE_MS = 150, WARM_MS = 400, STILL_PX = 4;
 const pop = el("div", "cite-pop"); pop.hidden = true; pop.setAttribute("role", "tooltip"); document.body.append(pop);
-let popFor = null, popTimer = 0;
+let popFor = null, settleTimer = 0, leaveTimer = 0, scrollTimer = 0, warmUntil = 0, scrolling = false, rest = null;
 const clip = (t, n) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
 function previewHtml(r) {
-  if (r.kind === "visit") {
-    return `<small>Visit ${r.id}</small><strong>${esc(r.person || "")}</strong><span>${when(r.start_time, r.end_time)}</span>${carerLine(r)}<p>${esc(clip(r.note || "No note", 150))}</p>`;
-  }
-  const first = (r.sections || []).flatMap((x) => x.items || []).find((i) => i.answer);
-  return `<small>${esc(r.form || "Form")} ${r.id}</small><strong>${esc(r.person || r.title || "")}</strong><span>created ${when(r.created_at)}</span>${first ? `<p>${esc(clip(String(first.answer), 150))}</p>` : ""}`;
+  const h = recordHead(r);
+  const first = r.kind === "visit" ? r.note || "No note" : (r.sections || []).flatMap((x) => x.items || []).find((i) => i.answer)?.answer;
+  return `<small>${h.kind}</small><strong>${h.title}</strong><span>${h.meta}</span>${h.carer}${first ? `<p>${esc(clip(String(first), 150))}</p>` : ""}`;
 }
-function hidePop() { clearTimeout(popTimer); popFor = null; pop.hidden = true; }
-$("thread").addEventListener("mouseover", (e) => {
+function hidePop() {
+  clearTimeout(settleTimer); clearTimeout(leaveTimer);
+  if (!pop.hidden) warmUntil = performance.now() + WARM_MS;
+  popFor = null; pop.hidden = true;
+}
+async function showPop(c) {
+  try {
+    const r = await getRecord(c.dataset.kind, c.dataset.id);
+    if (popFor !== c) return;
+    pop.innerHTML = previewHtml(r); pop.hidden = false;
+    place(pop, c, { centered: true });
+  } catch { /* no preview: tapping still shows the error */ }
+}
+function aim(c) {  // c is what the pointer or focus is on now
+  clearTimeout(settleTimer); clearTimeout(leaveTimer);
+  popFor = c;
+  const warm = !pop.hidden || performance.now() < warmUntil;
+  if (warm || c.matches(":focus-visible")) showPop(c); else settleTimer = setTimeout(() => showPop(c), SETTLE_MS);
+}
+const thread = $("thread");
+thread.addEventListener("mouseover", (e) => {
   const c = e.target.closest(".cite");
-  if (!c || c === popFor) return;
-  hidePop(); popFor = c;
-  popTimer = setTimeout(async () => {
-    try {
-      const r = await getRecord(c.dataset.kind, c.dataset.id);
-      if (popFor !== c) return;
-      pop.innerHTML = previewHtml(r); pop.hidden = false;
-      const b = c.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
-      pop.style.left = `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`;
-      pop.style.top = `${b.top - h - 8 < 8 ? b.bottom + 8 : b.top - h - 8}px`;
-    } catch { /* no preview: tapping still shows the error */ }
-  }, 220);
+  if (c && !scrolling && c !== popFor) { rest = { x: e.clientX, y: e.clientY }; aim(c); }
+  else if (c && c === popFor) clearTimeout(leaveTimer);
 });
-$("thread").addEventListener("mouseout", (e) => { if (e.target.closest(".cite") && !e.relatedTarget?.closest?.(".cite")) hidePop(); });
-addEventListener("scroll", hidePop, { passive: true });
-addEventListener("click", hidePop);
+thread.addEventListener("mousemove", (e) => {  // still moving over the citation: the rest starts again
+  if (!popFor || !pop.hidden || !rest) return;
+  if (Math.hypot(e.clientX - rest.x, e.clientY - rest.y) > STILL_PX) { rest = { x: e.clientX, y: e.clientY }; aim(popFor); }
+});
+thread.addEventListener("mouseout", (e) => {
+  if (e.target.closest(".cite") && !e.relatedTarget?.closest?.(".cite")) leaveTimer = setTimeout(hidePop, LEAVE_MS);
+});
+thread.addEventListener("focusin", (e) => { const c = e.target.closest(".cite"); if (c) aim(c); });
+thread.addEventListener("focusout", (e) => { if (e.target.closest(".cite")) hidePop(); });
+for (const type of ["wheel", "scroll"]) {  // a hover that scrolled under a still pointer is not intent
+  addEventListener(type, () => {
+    scrolling = true; clearTimeout(scrollTimer); scrollTimer = setTimeout(() => { scrolling = false; }, 150);
+    clearTimeout(settleTimer);
+  }, { passive: true, capture: true });
+}
