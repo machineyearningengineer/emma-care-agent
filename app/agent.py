@@ -59,7 +59,8 @@ Answering:
   different concern (mobility, intake, mood, confusion, medication, safeguarding), so no theme
   the notes raise is dropped. For a question about one person, don't repeat the name on each
   bullet. Quote the care plan only when it contradicts the notes or is out of date.
-- Cite evidence inline as (visit <id>) or (form <id>), ids only; for several, (visits 12, 15).
+- Cite evidence inline as (visit <id>) or (form <id>), ids only; for several of one kind,
+  (visits 12, 15). Never mix visits and forms in one bracket: write (visit 12) (form 4).
   Put dates in the sentence, never inside the brackets.
 - When a question covers everyone, say in one line who you checked and found no concerns.
 - Finish with "What I couldn't determine:" and at most 3 short bullets: only gaps in the records

@@ -34,7 +34,13 @@ def check(case: dict, answer: str) -> list[str]:
         if not needs_unknowns or re.search(r"what i couldn.?t determine", answer, re.I)
         else ["unknowns section"]
     )
-    return missing + present + unknowns
+    # The page turns "(visit 12)" into a button and shows anything else as plain text.
+    odd = [
+        m
+        for m in re.findall(r"\((?:visits?|forms?)\s[^()]*\)", answer, re.I)
+        if not re.fullmatch(r"\((visits?|forms?) \d+(?:, \d+)*\)", m, re.I)
+    ]
+    return missing + present + unknowns + [f"unlinkable citation {m}" for m in odd]
 
 
 def run_one(case: dict, model: str) -> dict:
