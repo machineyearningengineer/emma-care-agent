@@ -26,7 +26,7 @@ If you only have 5 minutes: steps 1 and 2.
 5. `run_sql` (`app/db.py`) runs a read-only query with caps on rows, size and time, and returns rows.
 6. The answer streams back as lines of JSON (`app/events.py`): queries, results, text.
 7. The page shows the text, turns `(visit 12)` into buttons, and opens records from
-   `/api/visit/{id}` and `/api/form/{id}` (`app/records.py`).
+   `/api/records/visit/{id}` and `/api/records/form/{id}` (`app/records.py`).
 
 ## Where things are
 
