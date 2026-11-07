@@ -13,15 +13,16 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from fastapi import Path as PathParam
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agent import MODEL, ask, ask_stream
-from app.db import connect
-from app.replay import EXAMPLES, mode, replay_stream
+from app import records
+from app.agent import PROMPT_VERSION, ask_stream
+from app.config import HISTORY_MESSAGES, MODEL, QUESTION_CHARS, mode
+from app.replay import EXAMPLES, replay_stream
 
 app = FastAPI(title="Care data agent")
 STATIC = Path(__file__).parent / "static"
@@ -54,12 +55,8 @@ class Turn(BaseModel):
 
 
 class Ask(BaseModel):
-    question: str = Field(min_length=1, max_length=2000)
-    history: list[Turn] = Field(default_factory=list, max_length=12)
-
-
-def _events(question: str, history: list[dict]):
-    return ask_stream(question, history) if mode() == "live" else replay_stream(question)
+    question: str = Field(min_length=1, max_length=QUESTION_CHARS)
+    history: list[Turn] = Field(default_factory=list, max_length=HISTORY_MESSAGES)
 
 
 @app.get("/")
@@ -69,95 +66,44 @@ def index():
 
 @app.get("/api/meta")
 def meta():
-    """What the page header shows: whose data it is, how recent, and how answers are made."""
-    con = connect()
-    try:
-        org = con.execute("SELECT name FROM org_units ORDER BY id LIMIT 1").fetchone()
-        people = con.execute("SELECT count(*) FROM service_users WHERE status = 'Active'").fetchone()[0]
-        first, last = con.execute("SELECT min(start_time), max(start_time) FROM visits").fetchone()
-    finally:
-        con.close()
+    """What the page needs before the first question: the data, the mode, and the limits to respect."""
     return {
-        "org": org[0] if org else None,
-        "people": people,
-        "from": first,
-        "to": last,
+        **records.overview(),
         "model": MODEL,
         "mode": mode(),
         "examples": EXAMPLES,
+        "limits": {"question_chars": QUESTION_CHARS, "history_messages": HISTORY_MESSAGES},
     }
 
 
 @app.get("/api/records/visit/{visit_id}")
 def visit_record(visit_id: int = PathParam(ge=1)):
-    """The source behind a "(visit N)" citation: the note and each activity, as recorded."""
-    con = connect()
-    try:
-        row = con.execute(
-            "SELECT v.id, v.start_time, v.end_time, v.status, v.note, v.activities, su.name, c.name "
-            "FROM visits v LEFT JOIN service_users su ON su.id = v.service_user_id "
-            "LEFT JOIN carers c ON c.id = v.carer_id WHERE v.id = ?",
-            [visit_id],
-        ).fetchone()
-    finally:
-        con.close()
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"No visit {visit_id}")
-    keys = ["id", "start_time", "end_time", "status", "note", "activities", "person", "carer"]
-    rec = dict(zip(keys, row, strict=True))
-    rec["activities"] = json.loads(rec["activities"] or "[]")
-    return {"kind": "visit", **rec}
+    return records.visit(visit_id) or _missing("visit", visit_id)
 
 
 @app.get("/api/records/form/{form_id}")
 def form_record(form_id: int = PathParam(ge=1)):
-    """The source behind a "(form N)" citation: every section, question and answer."""
-    con = connect()
-    try:
-        row = con.execute(
-            "SELECT f.id, f.instance_title, fc.name, f.created_at, f.entity_type, su.name, f.form_data "
-            "FROM forms f LEFT JOIN form_configs fc ON fc.id = f.form_config_id "
-            "LEFT JOIN service_users su ON su.id = f.service_user_id WHERE f.id = ?",
-            [form_id],
-        ).fetchone()
-    finally:
-        con.close()
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"No form {form_id}")
-    keys = ["id", "title", "form", "created_at", "entity_type", "person", "sections"]
-    rec = dict(zip(keys, row, strict=True))
-    rec["sections"] = json.loads(rec["sections"] or "[]")
-    return {"kind": "form", **rec}
+    return records.form(form_id) or _missing("form", form_id)
 
 
-@app.post("/api/ask")
-def api_ask(body: Ask, response: Response):
-    """Whole answer as one JSON object. For curl, scripts and evals. Always live."""
-    rid = uuid.uuid4().hex[:12]
-    response.headers["X-Request-ID"] = rid
-    _log(rid, "ask", question=body.question, transport="json")
-    try:
-        result = ask(body.question, [t.model_dump() for t in body.history])
-    except Exception as e:  # model or network failure: report it, don't hide it
-        _log(rid, "error", error=f"{type(e).__name__}: {e}")
-        raise HTTPException(status_code=502, detail=f"{type(e).__name__}: {e} (request {rid})") from e
-    _log(rid, "done", steps=result["steps"], seconds=result["seconds"], **result["usage"])
-    return {"request_id": rid, **result}
+def _missing(kind: str, record_id: int):
+    raise HTTPException(status_code=404, detail=f"No {kind} {record_id}")
 
 
 @app.post("/api/ask/stream")
 def api_ask_stream(body: Ask):
-    """The same agent as newline-delimited JSON events, so the page can show progress."""
+    """The agent as newline-delimited JSON events (app/events.py), so the page can show progress."""
     rid = uuid.uuid4().hex[:12]
     history = [t.model_dump() for t in body.history]
-    run_mode = mode()
+    run_mode = mode()  # once per request: the start event and the events that follow agree
 
     def lines():
         started = time.perf_counter()
-        _log(rid, "ask", question=body.question, transport="stream", mode=run_mode)
+        _log(rid, "ask", question=body.question, mode=run_mode, prompt=PROMPT_VERSION)
         yield _line({"type": "start", "request_id": rid, "mode": run_mode})
+        events = ask_stream(body.question, history) if run_mode == "live" else replay_stream(body.question)
         try:
-            for event in _events(body.question, history):
+            for event in events:
                 if event["type"] == "result":
                     _log(rid, "query", **{k: v for k, v in event.items() if k != "type"})
                 elif event["type"] == "done":

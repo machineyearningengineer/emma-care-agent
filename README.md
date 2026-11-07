@@ -6,7 +6,7 @@ says what the data can't tell you.
 
 ```bash
 uv sync
-echo "OPENAI_API_KEY=sk-..." > .env          # OPENAI_MODEL defaults to gpt-5.4-mini
+echo "OPENAI_API_KEY=sk-..." > .env          # the app answers with gpt-5.5 (OPENAI_MODEL); evals use gpt-5.4-mini
 uv run uvicorn app.server:app                # http://localhost:8000
 uv run python -m app.agent "Who needs my attention this week?"   # same agent, terminal
 ```
@@ -14,7 +14,7 @@ uv run python -m app.agent "Who needs my attention this week?"   # same agent, t
 ## How it works
 
 ```
-page ──POST /api/ask──▶ FastAPI ──▶ agent loop (OpenAI tool calling, ≤ 8 tool turns)
+page ──POST /api/ask/stream──▶ FastAPI ──▶ agent loop (OpenAI tool calling)
                                        │  system prompt = strategy + schema derived from the live DB
                                        └─ run_sql(sql, params) ──▶ SQLite, read-only
 ```
@@ -72,7 +72,8 @@ distinct carers, and text in the database is data, not instructions.
   narrows instead of concluding.
 - SQL errors go back to the model as text so it can fix its own query, and the loop never
   crashes on them.
-- After 8 tool turns the model must answer, which bounds tokens per question.
+- A question is bounded three ways (`app/config.py`): 8 tool turns, 150k prompt tokens and 120 s.
+  Past any of them the next turn must answer.
 
 ## At production scale
 
@@ -126,7 +127,7 @@ Results on 7 Nov 2026:
   dated evidence against each plan, but never said the plans themselves are undated since
   3 Nov, so the check fails. It writes more thorough answers but takes 30–60 s on the
   broad questions, against 10–20 s for mini.
-- About 30k tokens per question on mini. `pytest`: 15 passed.
+- About 30k tokens per question on mini. `pytest` covers the guardrails, the loop, the stream protocol and the prompt/page contracts.
 
 What the first eval run caught, and the general fixes it led to:
 - The model read only the top level of `form_data` and decided the safeguarding forms
@@ -151,11 +152,15 @@ What the first eval run caught, and the general fixes it led to:
 ## Layout
 
 ```
+app/config.py      models, limits and run mode: the one place the environment is read
+app/events.py      the stream protocol: every event, typed once
 app/db.py          read-only connection and run_sql guardrails
-app/schema.py      schema description derived from the live database
-app/agent.py       system prompt, tool loop, trace
-app/server.py      FastAPI: GET /, POST /api/ask
-app/static/index.html
+app/schema.py      schema description derived from the live database (cached per file version)
+app/agent.py       system prompt, tool loop, trace, follow-up suggestions
+app/records.py     the data header and the record behind a citation
+app/replay.py      recorded answers for running without a key
+app/server.py      FastAPI: page, /api/meta, /api/records/*, POST /api/ask/stream
+app/static/        the page (index.html, app.css, app.js, fonts, logo)
 tests/             pytest, no API calls
 evals/             golden questions and runner
 NOTES.md           what I found exploring the data

@@ -1,0 +1,32 @@
+"""The one place configuration is read: environment, models, limits, and run mode.
+
+Everything else imports from here, so no module depends on another having loaded `.env`.
+"""
+
+from __future__ import annotations
+
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")  # the app; evals default to a cheaper one
+FOLLOW_UP_MODEL = os.environ.get("FOLLOW_UP_MODEL", "gpt-5.4-mini")
+
+# Three independent bounds on one question; the first to trip makes the next turn the answer.
+MAX_STEPS = 8  # model turns that may call tools
+TOKEN_BUDGET = 150_000  # prompt tokens spent so far (every step re-sends the conversation)
+DEADLINE_S = 120  # wall clock
+
+# Request limits. Served to the page by /api/meta, so the page never carries its own copy.
+QUESTION_CHARS = 2000
+HISTORY_MESSAGES = 6  # prior messages (user and assistant) sent back with a question
+
+
+def mode() -> str:
+    """ "live" (calls the model) or "replay" (recorded answers). Read per request, never cached."""
+    forced = os.environ.get("CARE_AGENT_MODE")
+    if forced in ("live", "replay"):
+        return forced
+    return "live" if os.environ.get("OPENAI_API_KEY") else "replay"

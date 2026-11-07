@@ -4,6 +4,7 @@ import json
 from types import SimpleNamespace as NS
 
 from app import agent
+from app.events import validate
 
 
 def chunk(content=None, tool=None, usage=None):
@@ -57,7 +58,9 @@ def test_tool_call_then_streamed_answer():
     events = list(agent.ask_stream("how many visits?", client=client))
     assert [e["type"] for e in events] == ["query", "result", "delta", "delta", "done", "suggestions"]
     assert events[0]["sql"] == SQL and events[1]["row_count"] == 1
+    assert all(validate(e) for e in events)  # every event is part of the protocol
     done = events[-2]
+    assert done["prompt"] == agent.PROMPT_VERSION
     assert events[-1] == {"type": "suggestions", "questions": []}  # fake client has no reply; fails soft
     assert done["answer"] == "336 visits." and done["usage"] == {
         "prompt_tokens": 300,
@@ -117,3 +120,10 @@ def test_token_budget_forces_an_answer():
 
     r = agent.ask("q", client=FakeClient([turn, turn]))
     assert r["answer"] == "Budget answer." and r["steps"] == 2
+
+
+def test_deadline_forces_an_answer(monkeypatch):
+    monkeypatch.setattr(agent, "DEADLINE_S", -1)  # already past on the first turn
+    client = FakeClient([[chunk("Out of time.")]])
+    assert agent.ask("q", client=client)["answer"] == "Out of time."
+    assert client.calls[0]["tool_choice"] == "none"

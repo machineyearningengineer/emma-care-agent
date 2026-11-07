@@ -6,10 +6,11 @@ hand-written part is only meaning the data can't show by itself.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 
-from app.db import connect
+from app.db import DB_PATH, connect
 
 SAMPLE_ROWS = 200  # rows sampled per table for value lists and JSON shapes
 MAX_LISTED = 40  # list a column's values only if it has this few distinct ones…
@@ -39,6 +40,13 @@ Meaning the schema can't show:
 
 
 def describe_schema() -> str:
+    """Cached per version of the database file, so a request costs nothing unless the data changed."""
+    st = DB_PATH.stat()
+    return _describe(DB_PATH, st.st_mtime_ns, st.st_size)
+
+
+@functools.lru_cache(maxsize=1)
+def _describe(_path, _mtime_ns, _size) -> str:
     con = connect()
     try:
         tables = [

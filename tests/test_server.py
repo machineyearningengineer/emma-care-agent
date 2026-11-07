@@ -3,57 +3,40 @@
 from fastapi.testclient import TestClient
 
 from app import server
+from app.events import validate
 
 
-def test_index_and_ask(monkeypatch):
-    seen = {}
-
-    def fake_ask(question, history):
-        seen.update(question=question, history=history)
-        return {"answer": "ok", "trace": [], "model": "fake", "steps": 1, "usage": {}, "seconds": 0}
-
-    monkeypatch.setattr(server, "ask", fake_ask)
+def test_index_static_and_input_limits(monkeypatch):
     c = TestClient(server.app)
     assert "Care data agent" in c.get("/").text
     assert c.get("/static/app.js").status_code == 200 and c.get("/static/app.css").status_code == 200
-    r = c.post("/api/ask", json={"question": "hi", "history": [{"role": "user", "content": "x"}]})
+    limits = c.get("/api/meta").json()["limits"]
+    assert c.post("/api/ask/stream", json={"question": ""}).status_code == 422
     assert (
-        r.json()["answer"] == "ok"
-        and r.json()["request_id"] == r.headers["X-Request-ID"]
-        and seen["history"] == [{"role": "user", "content": "x"}]
+        c.post("/api/ask/stream", json={"question": "x" * (limits["question_chars"] + 1)}).status_code == 422
     )
-
-
-def test_bad_input_and_model_failure(monkeypatch):
-    c = TestClient(server.app)
-    assert c.post("/api/ask", json={"question": ""}).status_code == 422
-    assert (
-        c.post(
-            "/api/ask", json={"question": "x", "history": [{"role": "system", "content": "x"}]}
-        ).status_code
-        == 422
-    )
-
-    def boom(*_):
-        raise RuntimeError("model down")
-
-    monkeypatch.setattr(server, "ask", boom)
-    r = c.post("/api/ask", json={"question": "x"})
-    assert r.status_code == 502 and "model down" in r.json()["detail"]
+    too_long = [{"role": "user", "content": "x"}] * (limits["history_messages"] + 1)
+    assert c.post("/api/ask/stream", json={"question": "x", "history": too_long}).status_code == 422
+    bad_role = [{"role": "system", "content": "x"}]
+    assert c.post("/api/ask/stream", json={"question": "x", "history": bad_role}).status_code == 422
 
 
 def test_stream_sends_events_and_reports_failure_as_event(monkeypatch):
     import json
 
+    seen = {}
+
     def fake_stream(question, history):
+        seen["history"] = history
         yield {"type": "delta", "text": "hi"}
         raise RuntimeError("model down")
 
     monkeypatch.setattr(server, "ask_stream", fake_stream)
     monkeypatch.setenv("CARE_AGENT_MODE", "live")
     c = TestClient(server.app)
-    r = c.post("/api/ask/stream", json={"question": "x"})
+    r = c.post("/api/ask/stream", json={"question": "x", "history": [{"role": "user", "content": "h"}]})
     events = [json.loads(line) for line in r.text.splitlines()]
+    assert seen["history"] == [{"role": "user", "content": "h"}]
     rid = r.headers["X-Request-ID"]
     assert r.headers["content-type"].startswith("application/x-ndjson")
     assert events[0] == {"type": "start", "request_id": rid, "mode": "live"}
@@ -73,6 +56,7 @@ def test_replay_mode_without_a_key(monkeypatch):
     assert c.get("/api/meta").json()["mode"] == "replay"
     r = c.post("/api/ask/stream", json={"question": replay.EXAMPLES[0]})
     events = [json.loads(line) for line in r.text.splitlines()]
+    assert events[0]["type"] == "start" and all(validate(e) for e in events)
     assert events[-2]["type"] == "done" and events[-2]["replay"]["model"]
     assert events[-1]["type"] == "suggestions"
     r = c.post("/api/ask/stream", json={"question": "something not recorded"})
@@ -83,6 +67,7 @@ def test_replay_mode_without_a_key(monkeypatch):
 def test_meta_is_derived_from_the_data():
     r = TestClient(server.app).get("/api/meta").json()
     assert r["org"] == "Brookmere Care Team" and r["people"] == 10 and r["to"] == "2025-11-16 17:30:00"
+    assert r["limits"] == {"question_chars": 2000, "history_messages": 6}
 
 
 def test_citation_records():

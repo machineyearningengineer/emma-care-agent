@@ -26,7 +26,9 @@ HERE = Path(__file__).parent
 def check(case: dict, answer: str) -> list[str]:
     missing = [p for p in case.get("must", []) if not re.search(p, answer, re.I)]
     present = [f"NOT {p}" for p in case.get("must_not", []) if re.search(p, answer, re.I)]
-    return missing + present
+    # The page folds this section into its own box, so every answer must have it.
+    unknowns = [] if re.search(r"what i couldn.?t determine", answer, re.I) else ["unknowns section"]
+    return missing + present + unknowns
 
 
 def run_one(case: dict, model: str) -> dict:

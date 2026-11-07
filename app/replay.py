@@ -1,18 +1,20 @@
 """Replay mode: recorded real answers, so the app runs and demos without an OpenAI key.
 
-Live mode is used whenever OPENAI_API_KEY is set. Replays are recorded from live runs by
+Which mode runs is decided in app/config.py. Replays are recorded from live runs by
 `uv run python -m app.replay record` and stored in app/replays.json with the model and date.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 import time
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
+
+from app.events import Event
 
 REPLAYS = Path(__file__).parent / "replays.json"
 
@@ -26,13 +28,6 @@ EXAMPLES = [
 ]
 
 
-def mode() -> str:
-    forced = os.environ.get("CARE_AGENT_MODE")
-    if forced in ("live", "replay"):
-        return forced
-    return "live" if os.environ.get("OPENAI_API_KEY") else "replay"
-
-
 def _key(question: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", question.lower()).strip()
 
@@ -41,14 +36,13 @@ def _load() -> dict:
     return json.loads(REPLAYS.read_text()) if REPLAYS.exists() else {"answers": {}}
 
 
-def replay_stream(question: str, pace: float = 1.0):
+def replay_stream(question: str, pace: float = 1.0) -> Iterator[Event]:
     """Yield the same events as agent.ask_stream, from a recording."""
     data = _load()
     rec = data["answers"].get(_key(question))
     if rec is None:
         raise LookupError(
-            "Replay mode has recorded answers for the example questions only. "
-            "Set OPENAI_API_KEY to ask anything."
+            "Recorded answers exist for the example questions only. Set OPENAI_API_KEY to ask anything else."
         )
     for entry in rec["trace"]:
         yield {"type": "query", "sql": entry["sql"], "params": entry.get("params", [])}

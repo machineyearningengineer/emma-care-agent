@@ -6,25 +6,20 @@ then reads the narrowed free text itself and says what the data can't show.
 
 from __future__ import annotations
 
+import hashlib
 import json
-import os
+import logging
 import time
+from collections.abc import Iterator
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
+from app.config import DEADLINE_S, FOLLOW_UP_MODEL, MAX_STEPS, MODEL, TOKEN_BUDGET
 from app.db import MAX_ROWS, run_sql
+from app.events import Event
 from app.schema import describe_schema
 
-load_dotenv()
-
-# The app answers with the stronger model; evals default to the cheap one (evals/run.py).
-MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
-MAX_STEPS = 8  # model turns that may call tools; the next turn must answer
-# Prompt tokens one question may spend before the next turn must answer. Every step re-sends the
-# conversation so far, so cost grows with steps; this caps it whatever the model does.
-TOKEN_BUDGET = 150_000
-FOLLOW_UP_MODEL = os.environ.get("FOLLOW_UP_MODEL", "gpt-5.4-mini")
+log = logging.getLogger("care_agent")
 
 SYSTEM = """\
 You help care managers understand how the people their home-care service supports are doing,
@@ -52,7 +47,8 @@ How to work:
 Answering:
 - Lead with the direct answer and the date range you covered, then the evidence grouped by
   person, most urgent first.
-- Cite evidence inline as (visit <id>, <date>) or (form <id>).
+- Cite evidence inline as (visit <id>) or (form <id>), ids only; for several, (visits 12, 15).
+  Put dates in the sentence, never inside the brackets.
 - When a question covers everyone, name the people you checked who had no concerns.
 - Finish with "What I couldn't determine:", covering anything the data doesn't record. If the
   data can't answer the question at all, say so plainly. Never invent facts.
@@ -85,7 +81,13 @@ TOOLS = [
 ]
 
 
-def ask_stream(question: str, history: list[dict] | None = None, model: str = MODEL, client=None):
+# Changes whenever the instructions or the tool contract do. Logged and returned with every answer.
+PROMPT_VERSION = hashlib.sha256((SYSTEM + json.dumps(TOOLS, sort_keys=True)).encode()).hexdigest()[:8]
+
+
+def ask_stream(
+    question: str, history: list[dict] | None = None, model: str = MODEL, client=None
+) -> Iterator[Event]:
     """Answer one question as a stream of events. The one implementation of the agent loop.
 
     Events, in order:
@@ -93,8 +95,9 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
       {"type": "result", **trace_entry}        it finished (row_count / truncated / error, ms)
       {"type": "delta", "text"}                answer text as the model writes it
       {"type": "discard"}                      text written alongside tool calls; drop it
-      {"type": "done", "answer", "trace", "model", "steps", "usage", "seconds"}
+      {"type": "done", "answer", "trace", "model", "steps", "usage", "seconds", "prompt"}
       {"type": "suggestions", "questions"}     up to 3 follow-ups, after done (callers may stop at done)
+    The full protocol is in app/events.py.
     """
     client = client or OpenAI(timeout=90, max_retries=2)
     started = time.perf_counter()
@@ -109,7 +112,11 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0}
 
     for step in range(MAX_STEPS + 1):
-        final = step == MAX_STEPS or usage["prompt_tokens"] >= TOKEN_BUDGET
+        final = (
+            step == MAX_STEPS
+            or usage["prompt_tokens"] >= TOKEN_BUDGET
+            or time.perf_counter() - started >= DEADLINE_S
+        )
         text: list[str] = []
         calls: dict[int, dict] = {}
         stream = client.chat.completions.create(
@@ -152,6 +159,7 @@ def ask_stream(question: str, history: list[dict] | None = None, model: str = MO
                 "steps": step + 1,
                 "usage": usage,
                 "seconds": round(time.perf_counter() - started, 1),
+                "prompt": PROMPT_VERSION,
             }
             yield {"type": "suggestions", "questions": follow_ups(question, answer, client)}
             return
@@ -216,10 +224,9 @@ def follow_ups(question: str, answer: str, client=None) -> list[str]:
             max_completion_tokens=800,
         )
         items = json.loads(resp.choices[0].message.content or "{}").get("questions", [])
-        return [
-            q.strip() for q in items if isinstance(q, str) and 0 < len(q.strip()) <= 140 and "[" not in q
-        ][:3]
-    except Exception:
+        return [q.strip() for q in items if isinstance(q, str) and q.strip()][:3]
+    except Exception as e:  # suggestions are optional, but a broken model name must not stay invisible
+        log.warning(json.dumps({"event": "follow_ups_failed", "error": f"{type(e).__name__}: {e}"}))
         return []
 
 

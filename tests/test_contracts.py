@@ -1,0 +1,38 @@
+"""Contracts between the prompt, the recordings and the page. No API calls."""
+
+import json
+import re
+from pathlib import Path
+
+from app import agent
+from app.replay import EXAMPLES, REPLAYS, _key
+
+STATIC = Path(agent.__file__).parent / "static"
+
+
+def _page_citation():
+    """The page's citation pattern, read from app.js so the test can't drift from it."""
+    src = (STATIC / "app.js").read_text()
+    return re.compile(re.search(r"const CITE = /(.+)/gi;", src).group(1), re.I)
+
+
+def test_prompt_citation_format_is_what_the_page_links():
+    cite = _page_citation()
+    for example in ("(visit 12)", "(form 4)", "(visits 12, 15)"):
+        assert cite.fullmatch(example)
+    assert "(visit <id>) or (form <id>)" in agent.SYSTEM and "(visits 12, 15)" in agent.SYSTEM
+    assert not cite.fullmatch("(visit 12, 2025-11-12)")  # a date inside the brackets isn't a citation
+
+
+def test_every_recorded_answer_ends_with_what_it_could_not_determine():
+    answers = json.loads(REPLAYS.read_text())["answers"]
+    assert set(answers) == {_key(q) for q in EXAMPLES}
+    for key, rec in answers.items():
+        assert re.search(r"what i couldn.?t determine", rec["answer"], re.I), key
+
+
+def test_every_recorded_citation_is_one_the_page_links():
+    cite = _page_citation()
+    for rec in json.loads(REPLAYS.read_text())["answers"].values():
+        for m in re.findall(r"\((?:visits?|forms?)\s[^()]*\)", rec["answer"]):
+            assert cite.fullmatch(m), m
