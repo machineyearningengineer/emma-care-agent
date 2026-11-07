@@ -114,6 +114,45 @@ Each step is **not built**. The order follows what would break first.
 | 4 | Latency and context length | one long sequential loop → shortlist with SQL, then one small context per person in parallel, then rank | Many small contexts beat one large one |
 | 5 | Phrasing misses remain | keywords → embeddings combined with FTS5 | Only if step 1 shows misses of this kind |
 
+## Per-person pages, in plain words
+
+Today, to answer "who needs attention", the agent re-reads raw notes every time. A per-person
+page is a short, dated write-up of one person that a background job keeps current, so the agent
+can read ten lines before deciding whose raw records to open. An illustration:
+
+```
+Alfred Nkemelu · covers up to 16 Nov · rebuilt when his records change
+Open concerns, each with the record that proves it
+  - Near-fall while standing, 15 Nov (visit …)
+  - "very withdrawn… poor intake again", 16 Nov (visit …)
+Not found in the records: a review or an updated care plan
+```
+
+The rules, from the memory write-up: one writer per page, so jobs never overwrite each other;
+every claim cites a record; key phrases are quoted, not paraphrased; the page shows its date.
+The agent treats a page as a lead and opens the cited records before it says anything, because
+a wrong or stale page would otherwise be trusted. We don't build it yet: at 10 people it costs
+more to keep right than it saves.
+
+## Embeddings: what they add and where they fit
+
+An embedding turns a piece of text into numbers so that similar meanings sit close together.
+That finds "unsteady on his feet" when you search "near-fall", which FTS5 can't.
+
+| Good for | Why it fits |
+|---|---|
+| Paraphrase recall | Carers phrase the same thing many ways |
+| "Find similar past incidents" | A feature, not just retrieval |
+| Grouping near-duplicate routine comments | Extends the exact-text grouping we already do |
+
+They are a poor fit for sentiment, because risk isn't tone, and for anything that must be
+exact: names, dates, ids. They cost an index to keep in sync, a model version to track, and
+care text sent to an embedding service. A match can't explain itself the way a keyword can.
+
+Where: one stage in a funnel, never the answer. SQL narrows by person and date, then FTS5 and
+embeddings together propose candidate records, then the agent reads the raw text and cites it.
+Build them when a measured miss is about phrasing, not before.
+
 ## Transcripts
 
 This data has none, and the design stays focused on it. Emma pitches "one meeting at a time", so
@@ -147,3 +186,11 @@ guardrails change shape: the SQLite authorizer becomes a read-only role plus
 | Server-side sessions or memory | The page sends 6 messages; stateless scales, and memory is a case-management feature |
 | Subprocess for hard native timeouts | A length limit covers the real risk here |
 | Postgres now | SQLite does everything the agent needs |
+| Per-person pages now | At 10 people they cost more to keep right than they save, and a stale page can mislead |
+| A separate search tool | It would change the event protocol; the index is queried through the one tool |
+
+## Sources
+
+- Anthropic, [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory). The layers, the one-writer-per-page rule, and the wiki-plus-search figures (61% against 53%, and 87% against 73% on multi-document questions) are theirs, from their own tests, not ours.
+- SQLite [FTS5](https://www.sqlite.org/fts5.html) and [sqlite-vec](https://github.com/asg017/sqlite-vec) for the search and vector options.
+- Everything else here is measured on this repo: `evals/run.py`, `evals/scale.py`, and the commit messages in `git log`.
