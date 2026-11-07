@@ -366,25 +366,26 @@ async function openRecord(kind, id, back, claim) {
     dlg.querySelector("form").prepend(b);
   }
 }
+// Records grouped under the line of the answer that cites them: a few lines, each with its sources as chips.
 function showCited(cited, answer) {
+  const groups = [...answer.querySelectorAll("li, p")].map((node) => ({ node, cites: [...node.querySelectorAll(".cite[data-id]")] })).filter((g) => g.cites.length);
   const list = el("div", "rec-body");
-  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Open a record, or jump to the line that cites it.</p>`;
-  for (const { kind, id } of cited) {
-    const at = answer.querySelector(`.cite[data-kind="${kind}"][data-id="${id}"]`);
-    const line = (at?.closest("li, p")?.textContent || "").replace(/\s+/g, " ").trim();
-    const row = el("div", "rec-row");
-    const open = el("button", "link-btn", `${kind === "visit" ? "Visit" : "Form"} ${id}`); open.type = "button";
-    open.addEventListener("click", () => openRecord(kind, id, () => showCited(cited, answer), line));
-    row.append(open);
-    if (at) {
-      const jump = el("button", "link-btn jump-to", "Show in answer"); jump.type = "button";
-      jump.addEventListener("click", () => {
-        dlg.close(); at.scrollIntoView({ block: "center", behavior: "smooth" });
-        at.closest("li, p").classList.add("flash"); setTimeout(() => at.closest("li, p")?.classList.remove("flash"), 2200);
-      });
-      row.append(jump, Object.assign(el("div", "rec-line"), { textContent: line.length > 110 ? line.slice(0, 107) + "…" : line }));
+  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Tap a source to read it, or a line to find it in the answer.</p>`;
+  for (const { node, cites } of groups) {
+    const line = sentenceAround(cites[0]).replace(/\s*\((?:visits?|forms?) [\d, ]+\)/gi, "");
+    const group = el("div", "rec-group");
+    const text = el("button", "rec-line", ""); text.type = "button"; text.textContent = line;
+    text.addEventListener("click", () => {
+      dlg.close(); node.scrollIntoView({ block: "center", behavior: "smooth" });
+      node.classList.add("flash"); setTimeout(() => node.classList.remove("flash"), 2200);
+    });
+    const chips = el("div", "rec-chips");
+    for (const c of cites) {
+      const chip = el("button", "rec-chip", `${c.dataset.kind === "visit" ? "Visit" : "Form"} ${c.dataset.id}`); chip.type = "button";
+      chip.addEventListener("click", () => openRecord(c.dataset.kind, c.dataset.id, () => showCited(cited, answer), line));
+      chips.append(chip);
     }
-    list.append(row);
+    group.append(text, chips); list.append(group);
   }
   list.insertAdjacentHTML("beforeend", `<form method="dialog"><button class="link-btn">Close</button></form>`);
   dlg.replaceChildren(list);
@@ -419,3 +420,25 @@ function renderRecord(r, claim) {
   }
   return `<div class="rec-body">${head}${body}<form method="dialog"><button class="link-btn">Close</button></form></div>`;
 }
+
+/* ---------- Theme: system, light or dark ---------- */
+const THEMES = ["light dark", "light", "dark"], ICONS = {
+  "light dark": '<path d="M3 5h18v11H3zM8 20h8M12 16v4"/>',
+  light: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  dark: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+};
+const NAMES = { "light dark": "System", light: "Light", dark: "Dark" };
+const themeBtn = $("theme");
+function showTheme() {
+  const cur = document.documentElement.style.colorScheme || "light dark";
+  themeBtn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[cur]}</svg>`;
+  themeBtn.title = themeBtn.ariaLabel = `Theme: ${NAMES[cur]}. Tap to change.`;
+}
+themeBtn.addEventListener("click", () => {
+  const cur = document.documentElement.style.colorScheme || "light dark";
+  const next = THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length];
+  document.documentElement.style.colorScheme = next;
+  try { if (next === "light dark") localStorage.removeItem("theme"); else localStorage.setItem("theme", next); } catch { /* private mode: it just won't be remembered */ }
+  showTheme();
+});
+showTheme();

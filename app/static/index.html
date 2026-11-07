@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Care data agent</title>
+<script>try { const t = localStorage.getItem("theme"); if (t) document.documentElement.style.colorScheme = t; } catch {}</script>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -13,7 +14,10 @@
       <h1><img class="logo" src="/static/logo.svg" alt="Emma"></h1>
       <div class="name">Care data agent</div>
     </div>
-    <button class="icon-btn" id="openSheet" type="button" aria-haspopup="dialog">Questions</button>
+    <div class="top-actions">
+      <button class="icon-btn" id="openSheet" type="button" aria-haspopup="dialog">Questions</button>
+      <button class="icon-btn theme" id="theme" type="button"></button>
+    </div>
   </div>
 </header>
 
