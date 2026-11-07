@@ -6,10 +6,30 @@ says what the data can't tell you.
 
 ```bash
 uv sync
-echo "OPENAI_API_KEY=sk-..." > .env          # the app answers with gpt-5.5 (OPENAI_MODEL); evals use gpt-5.4-mini
 uv run uvicorn app.server:app                # http://localhost:8000
-uv run python -m app.agent "Who needs my attention this week?"   # same agent, terminal
 ```
+
+That is all you need. With no OpenAI key the app runs in replay mode: the five example
+questions play back real recorded answers, so you can try the whole page with no key and no
+network. To ask anything else, copy `.env.example` to `.env` and set `OPENAI_API_KEY`
+(the app answers with gpt-5.5; evals use gpt-5.4-mini). The same agent runs in the terminal:
+
+```bash
+uv run python -m app.agent "Who needs my attention this week?"
+```
+
+**Two minutes with it.** Open the page and tap *Who needs my attention this week?* Watch the
+queries run, then tap a citation like `visit 293` to open the record behind it. Ask *Were any
+visits missed or late?* and see it say the data can't tell. Tap a suggested follow-up. Open
+[docs/journey.html](docs/journey.html) for the architecture and how it was built.
+
+| Setting | Default | Effect |
+|---|---|---|
+| `OPENAI_API_KEY` | none | Set: live mode. Unset: replay mode. |
+| `CARE_AGENT_MODE` | auto | Force `live` or `replay`. |
+| `OPENAI_MODEL` / `FOLLOW_UP_MODEL` | gpt-5.5 / gpt-5.4-mini | Answering and follow-up models. |
+| `CARE_LOG_CONTENT` | off | `1` logs questions and SQL, which can name people. |
+| `CARE_DB` | `sources/care_data.db` | The database to query. |
 
 ## How it works
 
