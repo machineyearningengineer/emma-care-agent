@@ -68,6 +68,7 @@ nodes:
     invariant: The DOM is derived from the turn state. Nothing reads state back from the DOM.
     limits: ["Questions up to ${QUESTION_CHARS} characters", "Sends the last ${HISTORY_MESSAGES} messages with each question"]
     meets: [fr-ask, fr-cite, fr-unknowns, fr-queries, fr-followups]
+    primary: fr
     tradeoffs:
       - Plain JavaScript with no framework or build step. It costs hand-written rendering code.
       - Citations are record ids that the page fetches on tap. An id that does not exist shows an error in the record dialog.
@@ -80,6 +81,7 @@ nodes:
     invariant: At most ${MAX_CONCURRENT} live questions run at once. The next one is told to retry, not queued.
     limits: ["${MAX_CONCURRENT} live questions at once", "Logs omit questions, SQL and parameters unless CARE_LOG_CONTENT=1"]
     meets: [fr-ask, nfr-cost, nfr-observe, nfr-privacy]
+    primary: nfr
     tradeoffs:
       - A hard cap with a "busy" reply. It costs some refused questions at peak, and it needs no queue.
       - Each stream runs in a worker thread. This is simple to write and holds one thread per live question.
@@ -92,6 +94,7 @@ nodes:
     what: One definition of every event the agent, a replay or the server can emit. Tests validate real streams against it.
     invariant: Each stream runs query, result, delta, done, suggestions. Discard and error are the only exceptions.
     meets: [nfr-drift, fr-queries]
+    primary: nfr
     tradeoffs:
       - Typed dicts checked in tests, not a schema service. A new event type needs one edit and one test.
     breaks: Nothing. The protocol lived in a docstring until the step 9 audit.
@@ -102,6 +105,7 @@ nodes:
     what: Turns a citation such as (visit 293) into the full record behind it, by primary key.
     invariant: A citation holds ids only, in the exact form (visit 12) or (form 4). Dates stay in the sentence.
     meets: [fr-cite]
+    primary: fr
     tradeoffs:
       - Lookup by id. It costs a second request when a citation is tapped, and the answer stays small.
     breaks: Any id can be fetched. There is no auth and no organisation scoping.
@@ -112,6 +116,7 @@ nodes:
     what: Recorded real answers for the five example questions, so the app runs with no API key and no network.
     invariant: Replay and live emit the same events, so the page cannot tell them apart.
     meets: [nfr-offline]
+    primary: nfr
     tradeoffs:
       - Recordings go stale when the prompt changes. They store the model and date, and they are re-recorded by one command.
     breaks: Only the five example questions have recordings. Any other question gets a message to set OPENAI_API_KEY.
@@ -123,6 +128,7 @@ nodes:
     invariant: Facts the data can show are computed. Hand-written text covers only what the data cannot say.
     limits: ["Samples ${SAMPLE_ROWS} rows per table"]
     meets: [fr-ask, nfr-drift, nfr-scale]
+    primary: nfr
     tradeoffs:
       - Derived on load, not written by hand. It cannot go stale, and sampling can miss rare values.
       - We turned down a describe_schema tool, which would add a round trip to every question.
@@ -135,6 +141,7 @@ nodes:
     invariant: Three bounds apply to every question. When the first trips, the next model turn has tools switched off and must answer.
     limits: ["${MAX_STEPS} tool turns", "${TOKEN_BUDGET} prompt tokens", "${DEADLINE_S} seconds"]
     meets: [fr-ask, fr-unknowns, nfr-cost, nfr-observe]
+    primary: fr
     tradeoffs:
       - A cut-off still produces an answer from what was read. It costs completeness on broad questions, and the answer has to say so.
       - Prompt tokens are counted per call and summed, so the budget tracks cost. The peak call is logged separately to show real context size.
@@ -147,6 +154,7 @@ nodes:
     what: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop.
     invariant: The prompt carries a version hash. It is logged and returned with every answer.
     meets: [fr-ask, fr-unknowns, fr-followups, fr-refuse, nfr-observe]
+    primary: fr
     tradeoffs:
       - Follow-ups fail soft: an error gives an empty list and a log line, never a failed answer.
       - The prompt tells the model to refuse writes. This is a courtesy, and the database refusal is what enforces it.
@@ -158,6 +166,7 @@ nodes:
     what: The agent's only tool. It takes one SELECT with parameters. Errors go back to the model as text so it can fix its own SQL.
     invariant: There is one tool, so there is one place where queries are checked.
     meets: [fr-queries, nfr-safety]
+    primary: nfr
     tradeoffs:
       - Free-form SQL instead of a tool per report. It allows any question, and the model can write valid SQL that is wrong.
       - Every query is recorded in the trace, so a wrong one can be seen.
@@ -170,6 +179,7 @@ nodes:
     invariant: The file is opened mode=ro with query_only on, an authorizer allows only reads, and each call runs one statement.
     limits: ["${MAX_ROWS} rows, ${MAX_CELL_CHARS} characters per cell, ${MAX_RESULT_CHARS} characters per result", "${TIMEOUT_S} second query deadline", "Strings or blobs over ${MAX_VALUE_BYTES} bytes cannot be built"]
     meets: [nfr-safety, nfr-cost, fr-refuse]
+    primary: nfr
     tradeoffs:
       - Authorizer rules instead of a regex on SQL. It costs a short allow-list to maintain, and it cannot be bypassed by odd syntax.
       - Caps cut results, and a cut sets a flag and a warning the model sees. We turned down a subprocess for hard timeouts, since the length limit covers the real risk.
@@ -181,6 +191,7 @@ nodes:
     what: Three flat views (one row per note, comment or form answer, with the person joined) and an FTS5 index over all free text. They are built in each connection's temp database.
     invariant: The source file is never written, and the agent cannot write to the index.
     meets: [nfr-scale, fr-ask]
+    primary: nfr
     tradeoffs:
       - Rebuilt for every connection. That takes about 6 ms at this size and needs no sync logic.
       - Search finds candidates fast, but the prompt still tells the model to read the text, because carers phrase things in many ways.
@@ -192,6 +203,7 @@ nodes:
     what: Eight golden questions with required facts, one of them a write request that must be refused. A scale check adds many quiet people and confirms the real concerns still surface.
     invariant: A prompt change is measured against the same questions each time.
     meets: [nfr-drift, nfr-scale]
+    primary: nfr
     tradeoffs:
       - Checks look for facts in the answer. They are cheap and repeatable, and they do not judge reasoning.
       - We turned down scoring with another model, which would share the same blind spots.
@@ -366,6 +378,18 @@ steps:
     found: With 40 times as many quiet people (about 205 in all) the broad question still found all five real concerns in 13 s. The clones repeat their text, so this is easier than production.
     rejected: ["A separate search tool, which would change the event protocol for no gain."]
     breaks: The index is rebuilt for each connection. That is fine here and slow at scale.
+
+  - id: 12
+    when: "19:20"
+    title: Faster answers and a visible working state
+    commits: [d9dda8d]
+    nodes: [model, page]
+    A: 73 seconds and 292k tokens on the broad question, with a static "Running query 9"
+    B: reasoning off for the answering model, and a live status line with a timer and the current query
+    why: Most of the wait was the model thinking before each query. Turning that off cut time by two thirds and tokens by more than half.
+    found: On the broad question gpt-5.5 took 51 to 73 seconds with reasoning on and 19 to 21 seconds with it off. All five people were still found and 8 of 8 evals passed. gpt-5.4-mini missed one person in a single default run.
+    rejected: ["The Responses API for finer control of reasoning: a bigger change for the same gain.", "gpt-5.4-mini as the default: one run missed a person."]
+    breaks: Less thinking can cost depth on hard questions. The evidence is 8 questions, run once each.
 
 next:
   - id: n1

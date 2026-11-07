@@ -23,6 +23,7 @@ import yaml
 HERE = Path(__file__).parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
+PRIMARY = {"fr": "functional", "nfr": "nonfunctional"}
 MODULES = ("app.config", "app.db", "app.schema", "app.agent")
 
 
@@ -82,9 +83,16 @@ def problems(data: dict) -> list[str]:
         ("step", [str(s["id"]) for s in data["steps"]]),
     ):
         out += [f"duplicate {kind} id {i}" for i in sorted({i for i in ids if ids.count(i) > 1})]
+    kinds = {r["id"]: r["kind"] for r in data["requirements"]}
     for n in data["nodes"]:
         if not n.get("meets"):
             out.append(f"node {n['id']} meets no requirement")
+        if "primary" in n:
+            want = PRIMARY.get(n["primary"])
+            if want is None:
+                out.append(f"node {n['id']} has primary {n['primary']}, want fr or nfr")
+            elif not any(kinds.get(r) == want for r in n.get("meets", [])):
+                out.append(f"node {n['id']} is primarily {n['primary']} but meets no {want} requirement")
         out += [f"node {n['id']} meets unknown {r}" for r in n.get("meets", []) if r not in reqs]
         if not any(n["id"] in s["nodes"] for s in data["steps"]):
             out.append(f"node {n['id']} is built in no step")
@@ -112,13 +120,19 @@ def problems(data: dict) -> list[str]:
 
 
 def load() -> dict:
-    """The YAML with code constants filled in, and each node's `since` derived from the steps."""
+    """The YAML with code constants filled in, and each node's `since` derived from the steps.
+
+    A node with no `primary` gets the kind most of its requirements have (functional on a tie)."""
     data = fill(yaml.safe_load((HERE / "journey.yaml").read_text()))
     found = problems(data)
     if found:
         raise ValueError("journey.yaml is inconsistent:\n  " + "\n  ".join(found))
+    kinds = {r["id"]: r["kind"] for r in data["requirements"]}
     for n in data["nodes"]:
         n["since"] = min(s["id"] for s in data["steps"] if n["id"] in s["nodes"])
+        if "primary" not in n:
+            fr = sum(kinds[r] == "functional" for r in n["meets"])
+            n["primary"] = "fr" if fr * 2 >= len(n["meets"]) else "nfr"
     return data
 
 

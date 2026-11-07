@@ -114,6 +114,12 @@ Replay mode records real answers so the app runs with no key.
 **Scale check (`evals/scale.py`):** with 40 times as many quiet people (about 205 people, 6.9k visits), the broad question still found all 5 people with real concerns, in 13 s, with a peak context of 32k tokens. One caveat: the clones repeat the same text, so grouping by comment collapses them. Real notes vary more, so this is an easier test than production.
 **Turned down:** a separate search tool (it would change the event protocol for no gain).
 
+### 12. Faster answers and a visible working state (19:20)
+**A → B:** 73 seconds and 292k tokens on the broad question, with a static "Running query 9" → reasoning off for the answering model (19 to 21 seconds, 75k to 108k tokens) and a status line with a timer and the current query.
+**Found:** the same five people, and 8 of 8 evals on gpt-5.5. gpt-5.4-mini missed one person in a single default run, so it is not the default. The chat API only allows tools with reasoning `none` on gpt-5.5.
+**Turned down:** the Responses API for finer control, which is a bigger change for the same gain.
+**Caveat:** the evidence is 8 questions run once each, and the peak context on the broad question was 41k to 75k tokens, higher than the 32k seen in the scale check.
+
 ## What Anthropic's memory write-up changes
 
 [Components of agent memory](https://www.anthropic.com/research/components-of-agent-memory)

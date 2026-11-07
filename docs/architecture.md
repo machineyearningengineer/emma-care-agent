@@ -26,7 +26,7 @@ Layer: Browser
 
 ### Page
 
-Layer: Browser. Built in step 6; changed in steps 6, 8, 9.
+Layer: Browser. Built in step 6; changed in steps 6, 8, 9, 12.
 
 - What it does: One column of turns. Each turn has a state (starting, querying, writing, done, failed or stopped) and the page is drawn from that state.
 - Always true: The DOM is derived from the turn state. Nothing reads state back from the DOM.
@@ -127,7 +127,7 @@ Layer: Agent. Built in step 4; changed in steps 4, 7, 10.
 
 ### Model
 
-Layer: Agent. Built in step 4; changed in steps 4.
+Layer: Agent. Built in step 4; changed in steps 4, 12.
 
 - What it does: gpt-5.5 writes the queries and the answer. A cheaper model, gpt-5.4-mini, only suggests follow-ups, outside the loop.
 - Always true: The prompt carries a version hash. It is logged and returned with every answer.
@@ -335,6 +335,15 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 - Found: With 40 times as many quiet people (about 205 in all) the broad question still found all five real concerns in 13 s. The clones repeat their text, so this is easier than production.
 - Turned down: A separate search tool, which would change the event protocol for no gain.
 - Breaks next: The index is rebuilt for each connection. That is fine here and slow at scale.
+
+### Step 12, 19:20 on 7 Nov: Faster answers and a visible working state
+
+- Before: 73 seconds and 292k tokens on the broad question, with a static "Running query 9"
+- After: reasoning off for the answering model, and a live status line with a timer and the current query
+- Why: Most of the wait was the model thinking before each query. Turning that off cut time by two thirds and tokens by more than half.
+- Found: On the broad question gpt-5.5 took 51 to 73 seconds with reasoning on and 19 to 21 seconds with it off. All five people were still found and 8 of 8 evals passed. gpt-5.4-mini missed one person in a single default run.
+- Turned down: The Responses API for finer control of reasoning: a bigger change for the same gain. gpt-5.4-mini as the default: one run missed a person.
+- Breaks next: Less thinking can cost depth on hard questions. The evidence is 8 questions, run once each.
 
 ## What comes next
 

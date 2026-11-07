@@ -31,13 +31,10 @@ h2 { font-size: 18px; margin: 32px 0 4px; }
 .chip b { border-radius: 999px; padding: 0 7px; font-size: 10px; letter-spacing: .04em; }
 .chip.fr { border-color: var(--fr); } .chip.fr b { background: var(--fr); color: var(--on-fr); }
 .chip.nfr { border-color: var(--nfr); } .chip.nfr b { background: var(--nfr); color: var(--on-nfr); }
-.chip.both b { background: linear-gradient(90deg, var(--fr) 50%, var(--nfr) 50%); color: #fff; text-shadow: 0 0 2px #000; }
 button.chip:hover, .chip.met { background: var(--soft); } .chip[aria-pressed="true"] { background: var(--soft); box-shadow: 0 0 0 2px var(--text); }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin: 12px 0 0; }
-.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+.legend > span { display: inline-flex; gap: 6px; align-items: center; }
 .sw { width: 22px; height: 14px; border-radius: 4px; border: 2px solid var(--line); display: inline-block; }
-.sw.fr { border-color: var(--fr); background: var(--fr-wash); } .sw.nfr { border-color: var(--nfr); background: var(--nfr-wash); }
-.sw.both { border-color: transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(90deg, var(--fr) 50%, var(--nfr) 50%) border-box; }
 .sw.warn { border-color: var(--warn); background: var(--warn-wash); } .sw.next { border: 2px dashed var(--lime); }
 .sw.gone { border: 2px dashed var(--muted); opacity: .6; } .sw.new { border-color: var(--line); box-shadow: 0 0 0 2px var(--accent); }
 
@@ -59,30 +56,31 @@ button.chip:hover, .chip.met { background: var(--soft); } .chip[aria-pressed="tr
 .layer { position: relative; z-index: 1; display: grid; gap: 6px; }
 .layer h3 { margin: 0; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .nodes { display: flex; flex-wrap: wrap; gap: 12px 76px; justify-content: space-around; }
-.node { flex: 1 1 140px; max-width: 230px; text-align: left; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface); transition: opacity .2s, box-shadow .2s; }
+.node { flex: 1 1 140px; max-width: 230px; text-align: left; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--line); border-left-width: 6px; background: var(--surface); transition: opacity .2s, box-shadow .2s; }
 .node .nm { display: block; font-weight: 600; font-size: 14px; }
 .node small { display: block; color: var(--muted); font-size: 11px; }
-.node .chip { margin: 4px 0 2px; padding: 0 8px 0 2px; font-size: 11px; border-color: transparent; background: none; }
-.k-fr { border-color: var(--fr); background: var(--fr-wash); } .k-nfr { border-color: var(--nfr); background: var(--nfr-wash); }
-.k-both { border-color: transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(90deg, var(--fr) 50%, var(--nfr) 50%) border-box; }
-.node.ghost { opacity: .45; outline: 2px dashed var(--muted); outline-offset: 2px; }
+.node .chip { margin: 4px 0 2px; padding: 0 8px 0 2px; font-size: 11px; border-color: transparent; background: none; color: var(--muted); }
+.k-fr { border-left-color: var(--fr); } .k-nfr { border-left-color: var(--nfr); }
+.node.ghost { outline: 2px dashed var(--muted); outline-offset: 2px; }
 .node.new { box-shadow: 0 0 0 3px var(--accent); }
 .node.touch { outline: 2px dashed var(--lime); outline-offset: 3px; }
 .node.up, .node.down, .node.path, .node.hit { box-shadow: 0 0 0 2px var(--muted); }
 .node.hit { box-shadow: 0 0 0 3px var(--text); }
 .node.sel { box-shadow: 0 0 0 2px var(--bg), 0 0 0 5px var(--text); }
-.node.dim { opacity: .4; }
-.edge path { fill: none; stroke: var(--muted); stroke-width: 1.2; opacity: .55; }
-.edge text { font-size: 10px; fill: var(--muted); text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 4px; }
-.edge.on path { stroke: var(--text); stroke-width: 2; opacity: 1; } .edge.on text { fill: var(--text); }
-.edge.path path { stroke: var(--accent); stroke-width: 3; opacity: 1; } .edge.path text { fill: var(--fr-text); font-weight: 600; }
+.node.ghost > *, .node.dim > * { opacity: .4; } /* dim the contents, not the box, so edges stay hidden behind it */
+.edge path { fill: none; stroke: var(--muted); stroke-width: 1; opacity: .4; }
+.edge .pill { fill: var(--surface); stroke: var(--line); }
+.edge text { font-size: 10px; fill: var(--text); text-anchor: middle; }
+.edge:not(.lab) .pill, .edge:not(.lab) text { display: none; }
+.edge.on path { stroke: var(--text); stroke-width: 2; opacity: 1; } .edge.on .pill { stroke: var(--text); }
+.edge.path path { stroke: var(--accent); stroke-width: 3; opacity: 1; } .edge.path .pill { stroke: var(--accent); } .edge.path text { fill: var(--fr-text); font-weight: 600; }
 .edge.dim { opacity: .18; } .edge.gone path { stroke-dasharray: 3 4; }
 .edge .head { fill: var(--muted); } .edge.on .head { fill: var(--text); } .edge.path .head { fill: var(--accent); }
 .tip { position: fixed; z-index: 50; max-width: 280px; padding: 8px 10px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 12px; line-height: 1.4; pointer-events: none; box-shadow: 0 4px 16px #0004; }
 .tip i { display: block; font-style: normal; opacity: .8; margin-top: 3px; }
-@media (max-width: 640px) {
+@media (max-width: 599px) {
   .nodes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } .node { max-width: none; }
-  .edge text { display: none; } .edge:not(.on):not(.path) { opacity: .2; } .diagram { gap: 30px; }
+  .edge:not(.on):not(.path) { opacity: .2; } .diagram { gap: 30px; }
 }
 
 /* detail panel */
@@ -101,11 +99,27 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
 .link + .link::before { content: ""; }
 
 /* lists */
-.cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); padding: 0; margin: 8px 0 0; list-style: none; }
+.cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); padding: 0; margin: 8px 0 0; list-style: none; }
 .card { display: block; width: 100%; height: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 12px; }
-.card:hover { background: var(--soft); } .card.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
-.card .t { font-size: 11px; color: var(--muted); } .card .n { font-weight: 600; font-size: 14px; } .card.future { opacity: .5; }
-.card.next { border: 2px dashed var(--lime); } .card .p { font-size: 13px; margin: 4px 0; }
+.card:hover { background: var(--soft); }
+.card .t { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--muted); }
+.card .n { font-weight: 600; font-size: 14px; }
+.card .ab2 { font-size: 12px; color: var(--muted); margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card .now { display: none; font-weight: 700; color: var(--on-fr); background: var(--accent); border-radius: 999px; padding: 0 8px; }
+.card.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); background: var(--fr-wash); } .card.on .now { display: inline; }
+.card.future { opacity: .5; }
+.nxs { align-items: start; }
+.nx { border: 2px dashed var(--lime); border-radius: 10px; background: var(--surface); }
+.nx.open { grid-column: 1 / -1; background: var(--soft); border-color: var(--accent); }
+.nx .head { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 8px 12px; }
+.nx .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.nx .n { font-weight: 600; font-size: 14px; }
+.nx .badge { flex: none; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; border: 1px dashed var(--lime); border-radius: 999px; padding: 0 8px; }
+.nx .p { font-size: 13px; margin: 4px 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.nx.open .p { display: block; }
+.nx .t { font-size: 11px; color: var(--muted); }
+.nx .body { padding: 0 12px 10px; }
+.nx .body .ab { margin-top: 0; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
 </head>
@@ -115,8 +129,8 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
     <h1 id="title"></h1><p class="sub" id="sub"></p>
     <p class="label">What it has to do. Tap one to see the parts that meet it.</p>
     <div id="reqs"></div>
-    <div class="legend" aria-label="Legend">
-      <span><i class="sw fr"></i>Functional (FR)</span><span><i class="sw nfr"></i>Non-functional (NFR)</span><span><i class="sw both"></i>Meets both</span>
+    <p class="note" style="margin-top:12px">A part's colour shows what it is mostly about. Tap FR or NFR to focus every part of that kind.</p>
+    <div class="legend" id="legend" role="group" aria-label="Legend">
       <span><i class="sw warn"></i>Breaks first</span><span><i class="sw gone"></i>Not built at this step</span>
       <span><i class="sw next"></i>Touched by a next step</span><span><i class="sw new"></i>New at this step</span>
     </div>
@@ -138,19 +152,19 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
   </div>
 
   <h2 style="margin-top:0">How one question flows</h2>
-  <p class="note">Questions travel down the layers, from the browser to the data. Answers come back up. Tap a part to see what it does and what it touches.</p>
+  <p class="note">Tap a part to see what it guarantees and what it costs. Questions travel down the layers and answers come back up. Press Story to follow one question through.</p>
   <div class="main">
     <div class="diagram" id="diagram"></div>
     <section class="detail" id="detail" aria-live="polite" aria-label="Details"></section>
   </div>
 
   <h2>How it was built</h2>
-  <p class="note">Each step is one change. Choose one to see the system as it was then.</p>
+  <p class="note">Each step is one change. Pick one to see the system as it was then. Later steps fade until you reach them.</p>
   <ol class="cards" id="tl"></ol>
 
   <h2>What breaks next</h2>
-  <p class="note">Not built. Each one names the parts it would change.</p>
-  <ol class="cards" id="nx"></ol>
+  <p class="note">None of these are built. Open one to see what it would change and why it waits.</p>
+  <ol class="cards nxs" id="nx"></ol>
 </div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script>
@@ -161,8 +175,10 @@ const node = by(N), req = by(R), nxt = by(NX);
 const $ = (id) => document.getElementById(id);
 const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const first = (s) => s.split(/(?<=\.)\s/)[0];
-const kind = (n) => { const k = new Set(n.meets.map((i) => req[i].kind)); return k.size > 1 ? "both" : k.has("functional") ? "fr" : "nfr"; };
-const KTXT = { fr: "FR", nfr: "NFR", both: "FR + NFR" };
+const kind = (n) => n.primary;
+const KTXT = { fr: "FR", nfr: "NFR" }, KLONG = { fr: "functional", nfr: "non-functional" };
+const reqCount = (n) => n.meets.length + (n.meets.length === 1 ? " requirement" : " requirements");
+const NARROW = matchMedia("(max-width: 599px)");
 
 /* One state object. focus is {kind: node|req|next, id} or null; story is an index into ST or null. */
 const st = { step: LAST, focus: null, story: null };
@@ -173,7 +189,7 @@ function fromHash() {
   st.step = q.has("step") && step >= 0 && step <= LAST ? Math.floor(step) : LAST; st.focus = null; st.story = null;
   const sn = +q.get("story");
   if (sn >= 1 && sn <= ST.length) st.story = sn - 1;
-  else for (const [k, tbl] of [["node", node], ["req", req], ["next", nxt]]) if (tbl[q.get(k)]) st.focus = { kind: k, id: q.get(k) };
+  else for (const [k, tbl] of [["node", node], ["req", req], ["next", nxt], ["prim", KTXT]]) if (Object.hasOwn(tbl, q.get(k))) st.focus = { kind: k, id: q.get(k) };
 }
 function go(patch, scroll) {
   Object.assign(st, patch);
@@ -183,7 +199,10 @@ function go(patch, scroll) {
 }
 const pickNode = (id) => go({ focus: { kind: "node", id }, story: null });
 const pickReq = (id) => go({ focus: { kind: "req", id }, story: null });
-const pickNext = (id) => { go({ focus: { kind: "next", id }, story: null, step: LAST }); $("detail").scrollIntoView({ block: "nearest", behavior: "smooth" }); };
+const pickNext = (id) => go({ focus: { kind: "next", id }, story: null, step: LAST });
+const toggleNext = (id) => (st.focus?.kind === "next" && st.focus.id === id ? go({ focus: null }) : pickNext(id));
+const pickPrim = (k) => (st.focus?.kind === "prim" && st.focus.id === k ? go({ focus: null }) : go({ focus: { kind: "prim", id: k }, story: null }));
+const showPanel = () => $("detail").scrollIntoView({ block: "nearest" });
 const pickStep = (i) => go({ step: Math.max(0, Math.min(LAST, i)), focus: null, story: null }, true);
 const pickStory = (i) => go(i == null || i < 0 ? { story: null } : { story: Math.min(i, ST.length - 1), focus: null, step: LAST });
 const focusNode = () => st.story != null ? ST[st.story].node : st.focus?.kind === "node" ? st.focus.id : null;
@@ -204,6 +223,7 @@ function related() {
     E.forEach((e, i) => { if (e.to === n) { r.up.add(e.from); r.on.add(i); } if (e.from === n) { r.down.add(e.to); r.on.add(i); } }); }
   if (st.story != null) for (let j = 1; j <= st.story; j++) { const p = route(ST[j - 1].node, ST[j].node); p.ns.forEach((x) => r.path.add(x)); p.es.forEach((x) => r.pathEdges.add(x)); }
   if (f?.kind === "req") { r.any = true; N.filter((x) => x.meets.includes(f.id)).forEach((x) => r.hit.add(x.id)); }
+  if (f?.kind === "prim") { r.any = true; N.filter((x) => x.primary === f.id).forEach((x) => r.hit.add(x.id)); }
   if (f?.kind === "next") nxt[f.id].touches.forEach((x) => r.touch.add(x));
   return r;
 }
@@ -223,7 +243,7 @@ const stepLink = (i) => link("Step " + i + ": " + S[i].title, () => pickStep(i))
 /* Detail panel. */
 function nodePanel(d, n) {
   d.append(h("h2", null, n.label));
-  const m = h("div", "meta"); m.append(chip(kind(n), n.layer + " layer"), n.since > st.step ? " Not built yet at step " + st.step : " Built in step " + n.since); d.append(m);
+  const m = h("div", "meta"); m.append(chip(kind(n), n.layer + " layer, mostly " + KLONG[kind(n)]), n.since > st.step ? " Not built yet at step " + st.step : " Built in step " + n.since); d.append(m);
   d.append(row("What it does", n.what), row("Always true", n.invariant, "true"));
   if (n.limits) d.append(row("Limits, read from the code", list(n.limits)));
   const rc = h("div"); n.meets.forEach((i) => rc.append(reqChip(i))); d.append(row("Requirements it meets", rc));
@@ -240,6 +260,11 @@ function nodePanel(d, n) {
 function reqPanel(d, r) {
   d.append(h("h2", null, r.label), h("div", "meta", r.kind === "functional" ? "Functional requirement" : "Non-functional requirement"), h("p", null, r.text));
   d.append(row("Parts that meet it", links(N.filter((n) => n.meets.includes(r.id)).map((n) => [n.label, () => pickNode(n.id)]))));
+}
+function primPanel(d, k) {
+  const what = k === "fr" ? "features a care manager uses" : "qualities the system keeps, such as safety, cost and traceability";
+  d.append(h("h2", null, "Mostly " + KLONG[k] + " parts"), h("div", "meta", KTXT[k] + " parts"), h("p", null, "These parts are mainly about " + what + "."));
+  d.append(row("Parts", links(N.filter((n) => n.primary === k).map((n) => [n.label, () => pickNode(n.id)]))));
 }
 function nextPanel(d, x) {
   d.append(h("h2", null, x.title), h("div", "meta", "Not built. Build it when: " + x.trigger), row("The problem", x.problem), ab(x.A, x.B), row("Why not yet", x.why_not_yet));
@@ -264,6 +289,7 @@ function paintDetail() {
   else if (f?.kind === "node") nodePanel(d, node[f.id]);
   else if (f?.kind === "req") reqPanel(d, req[f.id]);
   else if (f?.kind === "next") nextPanel(d, nxt[f.id]);
+  else if (f?.kind === "prim") primPanel(d, f.id);
   else { stepPanel(d, S[st.step]); d.append(h("p", "note", "Tap a part, a requirement or a step. Arrow keys move through the build. Escape clears the focus.")); }
 }
 
@@ -275,7 +301,7 @@ layers.forEach((l) => {
   const sec = h("div", "layer"), box = h("div", "nodes"); sec.append(h("h3", null, l), box);
   N.filter((n) => n.layer === l).forEach((n) => {
     const b = h("button", "node k-" + kind(n)); b.type = "button"; b.dataset.id = n.id; b.setAttribute("aria-describedby", "tip");
-    b.append(h("span", "nm", n.label), chip(kind(n), ""), h("small", null, ""));
+    b.append(h("span", "nm", n.label), chip(kind(n), reqCount(n)), h("small", null, ""));
     b.addEventListener("click", () => pickNode(n.id));
     b.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") tip(b, n); }); b.addEventListener("pointerleave", () => untip());
     b.addEventListener("focus", () => { if (b.matches(":focus-visible")) tip(b, n); }); b.addEventListener("blur", () => untip());
@@ -284,36 +310,62 @@ layers.forEach((l) => {
   dg.append(sec);
 });
 const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
-E.forEach((e) => { const g = mk("g", { class: "edge" }); g.append(mk("path"), mk("path", { class: "head" }), mk("text")); g.lastChild.textContent = e.label; svg.append(g); edgeEls.push(g); });
+E.forEach((e) => { const g = mk("g", { class: "edge" }); g.append(mk("path"), mk("path", { class: "head" }), mk("rect", { class: "pill", rx: 7 }), mk("text")); g.lastChild.textContent = e.label; svg.append(g); edgeEls.push(g); });
 
 function exit(c, d, r) { // distance along unit vector d from point c (inside r) to r's border
   const tx = d.x ? ((d.x > 0 ? r.right : r.left) - c.x) / d.x : Infinity, ty = d.y ? ((d.y > 0 ? r.bottom : r.top) - c.y) / d.y : Infinity;
   return Math.min(tx, ty);
 }
+const headPath = (t, d) => { const n = { x: -d.y, y: d.x }; return `M${t.x},${t.y}l${-d.x * 9 + n.x * 4},${-d.y * 9 + n.y * 4}l${n.x * -8},${n.y * -8}z`; };
 function drawEdges() {
-  const o = dg.getBoundingClientRect(), W = o.width;
+  const o = dg.getBoundingClientRect(), W = o.width, narrow = NARROW.matches;
   svg.setAttribute("width", W); svg.setAttribute("height", o.height);
   const rect = (id) => { const r = els[id].getBoundingClientRect(); return { left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top }; };
-  E.forEach((e, i) => {
-    const a = rect(e.from), b = rect(e.to), ca = { x: (a.left + a.right) / 2, y: (a.top + a.bottom) / 2 }, cb = { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
+  const geo = E.map((e) => {
+    const a = rect(e.from), b = rect(e.to), twin = E.some((x) => x.from === e.to && x.to === e.from);
+    if (narrow) { // vertical connectors between layers, one elbow in the gap
+      const off = twin ? (e.from < e.to ? 5 : -5) : 0, ax = (a.left + a.right) / 2 + off, bx = (b.left + b.right) / 2 + off;
+      let pts;
+      if (b.top >= a.bottom) { const m = (a.bottom + b.top) / 2 + off; pts = [[ax, a.bottom], [ax, m], [bx, m], [bx, b.top]]; }
+      else if (b.bottom <= a.top) { const m = (a.top + b.bottom) / 2 + off; pts = [[ax, a.top], [ax, m], [bx, m], [bx, b.bottom]]; }
+      else { const y = (Math.max(a.top, b.top) + Math.min(a.bottom, b.bottom)) / 2 + off; pts = a.right <= b.left ? [[a.right, y], [b.left, y]] : [[a.left, y], [b.right, y]]; }
+      const [p, q] = pts.slice(-2), len = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1;
+      return { pts, d: { x: (q[0] - p[0]) / len, y: (q[1] - p[1]) / len } };
+    }
+    const ca = { x: (a.left + a.right) / 2, y: (a.top + a.bottom) / 2 }, cb = { x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 };
     const len = Math.hypot(cb.x - ca.x, cb.y - ca.y) || 1, d = { x: (cb.x - ca.x) / len, y: (cb.y - ca.y) / len };
-    const twin = E.some((x) => x.from === e.to && x.to === e.from), off = twin ? 8 : 0, p = { x: -d.y * off, y: d.x * off };
-    const s0 = { x: ca.x + p.x, y: ca.y + p.y }, e0 = { x: cb.x + p.x, y: cb.y + p.y };
+    const off = twin ? 8 : 0, s0 = { x: ca.x - d.y * off, y: ca.y + d.x * off }, e0 = { x: cb.x - d.y * off, y: cb.y + d.x * off };
     const t1 = exit(s0, d, a) + 3, t2 = exit(e0, { x: -d.x, y: -d.y }, b) + 3;
-    const s = { x: s0.x + d.x * t1, y: s0.y + d.y * t1 }, t = { x: e0.x - d.x * t2, y: e0.y - d.y * t2 };
-    const g = edgeEls[i], [line, head, text] = g.children, n = { x: -d.y, y: d.x };
-    line.setAttribute("d", `M${s.x},${s.y}L${t.x},${t.y}`);
-    head.setAttribute("d", `M${t.x},${t.y}l${-d.x * 9 + n.x * 4},${-d.y * 9 + n.y * 4}l0,0l${n.x * -8},${n.y * -8}z`);
-    const side = n.x > 0.01 || (Math.abs(n.x) <= 0.01 && n.y > 0) ? 1 : -1, mx = (s.x + t.x) / 2, my = (s.y + t.y) / 2;
-    const wide = twin && Math.abs(n.x) > 0.5; // twin labels sit beside a steep pair of lines, above and below a flat one
-    text.style.textAnchor = wide ? (side > 0 ? "start" : "end") : "middle";
-    text.setAttribute("x", wide ? mx + n.x * 12 + side * 6 : Math.max(60, Math.min(W - 60, mx))); text.setAttribute("y", twin && !wide ? my + n.y * 12 + 3 : my - 3);
+    return { pts: [[s0.x + d.x * t1, s0.y + d.y * t1], [e0.x - d.x * t2, e0.y - d.y * t2]], d };
+  });
+  geo.forEach((g, i) => {
+    const [line, head] = edgeEls[i].children, t = g.pts[g.pts.length - 1];
+    line.setAttribute("d", "M" + g.pts.map((p) => p.join(",")).join("L"));
+    head.setAttribute("d", headPath({ x: t[0], y: t[1] }, g.d));
+  });
+  /* Labels: a pill at the edge midpoint, slid along the edge or sideways until it clears every part and every other pill. */
+  const taken = N.map((n) => rect(n.id)), clash = (r) => taken.some((x) => r.left < x.right + 3 && r.right > x.left - 3 && r.top < x.bottom + 3 && r.bottom > x.top - 3);
+  const shown = E.map((_, i) => i).filter((i) => !narrow && (edgeEls[i].classList.contains("on") || edgeEls[i].classList.contains("path")));
+  edgeEls.forEach((g, i) => g.classList.toggle("lab", shown.includes(i)));
+  shown.sort((i, j) => edgeEls[j].classList.contains("path") - edgeEls[i].classList.contains("path")).forEach((i) => {
+    const [s, t] = geo[i].pts, d = geo[i].d, n = { x: -d.y, y: d.x }, [, , pill, text] = edgeEls[i].children;
+    const w = E[i].label.length * 5.4 + 14, ht = 16, reach = Math.abs(n.x) * w / 2 + Math.abs(n.y) * ht / 2 + 6;
+    let best = null;
+    for (const u of [.5, .4, .6, .3, .7, .2, .8]) for (const k of [0, 1, -1]) {
+      const cx = Math.max(w / 2, Math.min(W - w / 2, s[0] + (t[0] - s[0]) * u + n.x * k * reach)), cy = s[1] + (t[1] - s[1]) * u + n.y * k * reach;
+      const r = { left: cx - w / 2, right: cx + w / 2, top: cy - ht / 2, bottom: cy + ht / 2 };
+      if (!best && !clash(r)) best = r;
+    }
+    if (!best) { const cx = (s[0] + t[0]) / 2, cy = (s[1] + t[1]) / 2; best = { left: cx - w / 2, right: cx + w / 2, top: cy - ht / 2, bottom: cy + ht / 2 }; }
+    taken.push(best);
+    pill.setAttribute("x", best.left); pill.setAttribute("y", best.top); pill.setAttribute("width", w); pill.setAttribute("height", ht);
+    text.setAttribute("x", (best.left + best.right) / 2); text.setAttribute("y", (best.top + best.bottom) / 2 + 3.5);
   });
 }
 
 /* Tooltip: fixed position, clamped to the viewport, above the part when there is no room below. */
 function tip(b, n) {
-  const t = $("tip"); t.replaceChildren(first(n.what)); if (n.limits) t.append(h("i", null, "Limit: " + n.limits[0])); t.hidden = false;
+  const t = $("tip"); t.replaceChildren(first(n.what)); if (n.limits) t.append(h("i", null, "Limit: " + n.limits[0])); t.append(h("i", null, "Meets: " + n.meets.map((i) => req[i].label).join(", "))); t.hidden = false;
   const r = b.getBoundingClientRect(), w = t.offsetWidth, ht = t.offsetHeight;
   t.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
   t.style.top = (r.bottom + ht + 12 < innerHeight ? r.bottom + 8 : Math.max(8, r.top - ht - 8)) + "px";
@@ -336,7 +388,7 @@ function paint() {
     b.setAttribute("aria-pressed", r.sel.has(n.id));
     const role = r.sel.has(n.id) ? "selected" : r.up.has(n.id) ? "sends to the selected part" : r.down.has(n.id) ? "receives from the selected part" : r.hit.has(n.id) ? "meets this requirement" : "";
     b.lastChild.textContent = !built ? "not built yet" : role || "step " + n.since;
-    b.setAttribute("aria-label", `${n.label}, ${KTXT[kind(n)]}${role ? ", " + role : ""}${built ? "" : ", not built yet"}`);
+    b.setAttribute("aria-label", `${n.label}, mostly ${KLONG[kind(n)]}, ${reqCount(n)}${role ? ", " + role : ""}${built ? "" : ", not built yet"}`);
   });
   const dim = r.any || st.story != null;
   E.forEach((e, i) => { const c = edgeEls[i].classList;
@@ -344,8 +396,9 @@ function paint() {
     c.toggle("gone", node[e.from].since > st.step || node[e.to].since > st.step); });
   const mine = new Set(fnode ? node[fnode].meets : []);
   document.querySelectorAll("#reqs .chip").forEach((c) => { c.classList.toggle("met", mine.has(c.dataset.id)); c.setAttribute("aria-pressed", f?.kind === "req" && f.id === c.dataset.id); });
-  document.querySelectorAll("#tl .card").forEach((c, i) => { c.classList.toggle("on", i === st.step && !f && st.story == null); c.classList.toggle("future", i > st.step); c.setAttribute("aria-current", i === st.step); });
-  document.querySelectorAll("#nx .card").forEach((c, i) => { c.classList.toggle("on", f?.kind === "next" && f.id === NX[i].id); });
+  document.querySelectorAll("#legend .chip").forEach((c) => c.setAttribute("aria-pressed", f?.kind === "prim" && f.id === c.dataset.prim));
+  document.querySelectorAll("#tl .card").forEach((c, i) => { c.classList.toggle("on", i === st.step); c.classList.toggle("future", i > st.step); if (i === st.step) c.setAttribute("aria-current", "step"); else c.removeAttribute("aria-current"); });
+  document.querySelectorAll("#nx .nx").forEach((li, i) => { const open = f?.kind === "next" && f.id === NX[i].id; li.classList.toggle("open", open); li.firstChild.setAttribute("aria-expanded", open); li.lastChild.hidden = !open; });
   paintDetail(); drawEdges();
 }
 
@@ -359,8 +412,21 @@ async function copyMd() {
 /* Static parts and events. */
 $("title").textContent = D.title; $("sub").textContent = D.subtitle; $("range").max = LAST;
 R.forEach((r) => { const c = reqChip(r.id); c.dataset.id = r.id; c.title = r.text; $("reqs").append(c); });
-S.forEach((s, i) => { const li = h("li"), b = h("button", "card"); b.type = "button"; b.append(h("div", "t", s.when), h("div", "n", s.id + ". " + s.title)); b.addEventListener("click", () => pickStep(i)); li.append(b); $("tl").append(li); });
-NX.forEach((x) => { const li = h("li"), b = h("button", "card next"); b.type = "button"; b.append(h("div", "n", x.title), h("div", "p", x.problem), h("div", "t", "Build it when: " + x.trigger)); b.addEventListener("click", () => pickNext(x.id)); li.append(b); $("nx").append(li); });
+S.forEach((s, i) => {
+  const li = h("li"), b = h("button", "card"), t = h("div", "t"); b.type = "button";
+  t.append(h("span", null, "Built in step " + s.id + " at " + s.when), h("span", "now", "Showing"));
+  b.append(t, h("div", "n", s.title), h("div", "ab2", s.A + " \u2192 " + s.B)); b.addEventListener("click", () => pickStep(i)); li.append(b); $("tl").append(li);
+});
+NX.forEach((x) => { /* an accordion: the head always shows, the body opens when this next step is the focus */
+  const li = h("li", "nx"), b = h("button", "head"), top = h("div", "top"), body = h("div", "body");
+  b.type = "button"; b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", "nxb-" + x.id); body.id = "nxb-" + x.id; body.hidden = true;
+  top.append(h("span", "n", x.title), h("span", "badge", "Not built")); b.append(top, h("div", "p", x.problem), h("div", "t", "Build it when: " + x.trigger));
+  b.addEventListener("click", () => toggleNext(x.id));
+  const part = (t) => [node[t].label, () => { pickNode(t); showPanel(); }];
+  body.append(ab(x.A, x.B), row("Parts it touches", links(x.touches.map(part))), row("Why not yet", x.why_not_yet));
+  li.append(b, body); $("nx").append(li);
+});
+["nfr", "fr"].forEach((k) => { const c = chip(k, k === "fr" ? "Functional parts" : "Non-functional parts", () => pickPrim(k)); c.dataset.prim = k; $("legend").prepend(c); });
 $("range").addEventListener("input", (e) => go({ step: +e.target.value }));
 $("prev").addEventListener("click", () => go({ step: Math.max(0, st.step - 1) })); $("nextb").addEventListener("click", () => go({ step: Math.min(LAST, st.step + 1) }));
 $("story").addEventListener("click", () => pickStory(st.story == null ? 0 : null));
@@ -372,6 +438,7 @@ addEventListener("keydown", (e) => {
 });
 addEventListener("hashchange", () => { fromHash(); paint(); });
 addEventListener("resize", () => { untip(); drawEdges(); });
+NARROW.addEventListener("change", drawEdges);
 fromHash(); paint();
 </script>
 </body>
