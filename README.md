@@ -127,6 +127,7 @@ Tens of thousands of visits a day and thousands of service users:
 uv run pytest                       # guardrails, schema and server wiring; no API calls
 uv run python evals/run.py          # golden questions on the cheap model; non-zero exit on failure
 uv run python evals/run.py --model gpt-5.5 --repeat 3
+uv run python evals/probes.py       # 12 realistic questions to read by hand; results and lessons: evals/RESULTS.md
 uv run python evals/run.py --model gpt-5.5 --only medication --repeat 5   # after changing the prompt
 ```
 
