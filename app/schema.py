@@ -15,6 +15,7 @@ from app.db import DB_PATH, connect
 SAMPLE_ROWS = 200  # rows sampled per table for value lists and JSON shapes
 MAX_LISTED = 40  # list a column's values only if it has this few distinct ones…
 MAX_VALUE_CHARS = 60  # …and they are all short (labels, not prose)
+MAX_ROSTER = 30  # list everyone in the prompt only while that stays small; beyond it the model queries
 _TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}")
 
 GLOSSARY = """\
@@ -73,10 +74,29 @@ def _describe(_path, _mtime_ns, _size) -> str:
             out.append(f"VIEW {view} ({cols})\n")
         ref = con.execute("SELECT max(start_time) FROM visits").fetchone()[0]
         out.append(f"reference_date (latest visit): {ref}\n")
+        out.append(_roster(con, ref))
         out.append(GLOSSARY)
         return "\n".join(out)
     finally:
         con.close()
+
+
+def _roster(con, ref: str) -> str:
+    """Who is in the data and how much there is to read, so the model can plan without a counting query."""
+    rows = con.execute(
+        "SELECT su.id, su.name, count(v.id), "
+        "sum(v.start_time > datetime(?, '-7 days')), max(v.start_time), "
+        "(SELECT count(*) FROM forms f WHERE f.service_user_id = su.id) "
+        "FROM service_users su LEFT JOIN visits v ON v.service_user_id = su.id "
+        "WHERE su.status = 'Active' GROUP BY su.id ORDER BY su.id",
+        [ref],
+    ).fetchall()
+    if len(rows) > MAX_ROSTER:
+        return f"{len(rows)} active people: too many to list here, so count and list them with a query.\n"
+    head = "Active people (service_user_id, name: visits in total, in the last 7 days, last visit, forms):"
+    lines = [head]
+    lines += [f"- {i} {name}: {n}, {week or 0}, {last}, {forms}" for i, name, n, week, last, forms in rows]
+    return "\n".join(lines) + "\n"
 
 
 def _describe_table(con, table: str) -> str:

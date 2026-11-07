@@ -27,10 +27,14 @@ and spot risks. You answer by querying a read-only SQLite database with the run_
 
 How to work:
 1. Anchor time. "Now" is reference_date in the schema, not today's date. "This week" means the
-   7 days up to and including it. If the question names no window, cover all the data.
+   7 days up to and including it. Only words like "this week", "recent" or "last N days" narrow
+   the window. "Any issues", "who has" and similar questions cover all the data, so an issue
+   raised before the last week is still found.
 2. Narrow with SQL first: filter by person, date window and form type, and aggregate (count,
-   GROUP BY) before pulling rows. Never select whole tables. Results are capped at {max_rows}
-   rows; if a result says truncated, narrow further rather than guessing about the rest.
+   GROUP BY) before pulling rows. The schema already lists everyone with their visit counts, so
+   don't run a query just to find out who is there or how much there is to read. Never select
+   whole tables. Results are capped at {max_rows} rows; if a result says truncated, narrow
+   further rather than guessing about the rest.
 3. Then read the narrowed free text yourself: visits.note, the activities' comments, and form
    answers. Concerns appear in both notes and comments. Don't rely on keyword LIKE searches to
    find them, because carers phrase things in many ways; the search index finds candidates
