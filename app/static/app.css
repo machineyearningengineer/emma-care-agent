@@ -204,12 +204,14 @@ textarea {
 textarea:focus-visible { outline: none; }  /* the box shows focus */
 textarea::placeholder { color: var(--text-3); }
 .send {
-  border: 0; border-radius: 10px; padding: 8px 16px; font-weight: 600; font-size: var(--step--1);
-  background: var(--primary); color: var(--on-primary); transition: background .15s var(--ease), opacity .15s var(--ease);
+  flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary); color: var(--on-primary); transition: background .15s var(--ease), opacity .15s var(--ease), transform .15s var(--ease);
 }
 .send:hover { background: var(--primary-hover); }
-.send:disabled { opacity: .45; cursor: default; }
-.send.stop { background: var(--surface-2); color: var(--text); border: 1px solid var(--line-strong); }
+.send:active { transform: scale(.94); }
+.send:disabled { opacity: .35; cursor: default; transform: none; }
+.send .i-stop, .send.stop .i-up { display: none; }
+.send.stop .i-stop { display: block; }
 .hint { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; }
 .jump {
   position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom, 0px)); z-index: 21;

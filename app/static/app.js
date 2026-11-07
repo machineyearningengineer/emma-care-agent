@@ -80,7 +80,7 @@ $("form").addEventListener("submit", (e) => {
 });
 function setBusy(busy) {
   const b = $("send");
-  b.textContent = busy ? "Stop" : "Ask";
+  b.setAttribute("aria-label", busy ? "Stop" : "Ask");
   b.classList.toggle("stop", busy);
   b.disabled = !busy && !q.value.trim();
 }
@@ -234,6 +234,7 @@ function renderNav() {
   const many = turns.length >= 2;
   rail.classList.toggle("has-items", many);
   $("openSheet").classList.toggle("has-items", many);
+  $("openSheet").textContent = `Questions · ${turns.length}`;
   rail.replaceChildren(...turns.map((t, i) => {
     const b = el("button", "tick"); b.type = "button"; b.setAttribute("aria-label", t.question);
     b.addEventListener("click", () => go(i));
