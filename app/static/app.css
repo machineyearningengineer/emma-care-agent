@@ -209,6 +209,10 @@ textarea::placeholder { color: var(--text-3); }
 .send:disabled { opacity: .35; cursor: default; transform: none; }
 .send .i-stop, .send.stop .i-up { display: none; }
 .send.stop .i-stop { display: block; }
+.queued:empty { display: none; }
+.queued { display: grid; gap: 4px; margin-bottom: 8px; }
+.queued-item { display: flex; align-items: baseline; gap: 12px; padding: 6px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text-2); font-size: var(--step--1); }
+.queued-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hint { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; }
 .jump {
   position: fixed; left: 50%; bottom: calc(110px + env(safe-area-inset-bottom, 0px)); z-index: 21;

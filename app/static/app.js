@@ -6,6 +6,8 @@ let limits = null;   // from /api/meta: the server owns the numbers
 const q = $("q");
 const turns = [];     // one object per question: its state, data and nodes
 let controller = null, seq = 0;
+const queued = [];   // questions asked while an answer is still being written; they run in order afterwards
+const MAX_QUEUED = 3;
 
 /* ---------- Markdown (escape first, so model text can't inject HTML) ---------- */
 const CITE = /\((visits?|forms?) (\d+(?:, \d+)*)\)/gi;  // ids only; the prompt asks for exactly this
@@ -86,20 +88,35 @@ $("jump").addEventListener("click", () => { follow = true; scrollTo({ top: docum
 
 /* ---------- Composer ---------- */
 const grow = () => { q.style.height = "auto"; q.style.height = Math.min(q.scrollHeight, 176) + "px"; };
-q.addEventListener("input", () => { grow(); if (!controller) $("send").disabled = !q.value.trim(); });
+q.addEventListener("input", () => { grow(); sendState(); });
 q.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("form").requestSubmit(); }
 });
 $("form").addEventListener("submit", (e) => {
   e.preventDefault();
-  if (controller) { controller.abort(); return; }
-  if (q.value.trim()) submit(q.value.trim());
+  const text = q.value.trim();
+  if (text) { q.value = ""; grow(); submit(text); }
+  else if (controller) { queued.length = 0; showQueued(); controller.abort(); }  // an empty send while busy is Stop
+  sendState();
 });
+// While an answer is running the button queues what is typed, and stops when nothing is typed.
+function sendState() {
+  const b = $("send"), typed = !!q.value.trim(), stop = !!controller && !typed;
+  b.setAttribute("aria-label", stop ? "Stop" : controller ? "Queue" : "Ask");
+  b.classList.toggle("stop", stop);
+  b.disabled = !controller && !typed;
+}
+function showQueued() {
+  $("queued").replaceChildren(...queued.map((text, i) => {
+    const chip = el("div", "queued-item", `<span>Next: ${esc(text)}</span>`);
+    const x = el("button", "link-btn", "Remove"); x.type = "button";
+    x.addEventListener("click", () => { queued.splice(i, 1); showQueued(); });
+    chip.append(x);
+    return chip;
+  }));
+}
 function setBusy(busy) {
-  const b = $("send");
-  b.setAttribute("aria-label", busy ? "Stop" : "Ask");
-  b.classList.toggle("stop", busy);
-  b.disabled = !busy && !q.value.trim();
+  sendState();
   $("jump").classList.toggle("busy", busy);  // a pulsing dot on the arrow: the answer is still being written below
   $("jump").title = busy ? "Scroll to latest (still working)" : "Scroll to latest";
 }
@@ -236,15 +253,18 @@ function build(question) {
   return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null } };
 }
 
-async function submit(question) {
+function submit(question) {
+  if (!controller) return run(question);
+  if (queued.length < MAX_QUEUED) { queued.push(question); showQueued(); }
+}
+async function run(question) {
   $("intro")?.remove();
-  q.value = ""; grow();
   const prior = history();
   const turn = { question, state: "starting", startedAt: performance.now(), queries: [], text: "", revealed: 0, done: null, error: null, requestId: null, suggestions: [], ...build(question) };
   turn.ui.error.append(retryButton(turn));
   $("thread").append(turn.node);
   turns.push(turn); renderNav();
-  controller = new AbortController();
+  const ctl = controller = new AbortController();
   setBusy(true); follow = true;
 
   let raf = 0;
@@ -254,7 +274,7 @@ async function submit(question) {
   const tick = setInterval(schedule, 1000);  // keeps the elapsed time moving between events
   try {
     const res = await fetch("/api/ask/stream", {
-      method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+      method: "POST", headers: { "Content-Type": "application/json" }, signal: ctl.signal,
       body: JSON.stringify({ question, history: prior }),
     });
     if (!res.ok) {
@@ -284,6 +304,8 @@ async function submit(question) {
     clearInterval(tick); cancelAnimationFrame(raf); paint(); renderNav();
     controller = null; setBusy(false);
     if (window.matchMedia("(pointer: fine)").matches) q.focus();
+    const next = queued.shift(); showQueued();
+    if (next) submit(next);
   }
 }
 
