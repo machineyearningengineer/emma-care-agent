@@ -1,0 +1,82 @@
+"""Replay mode: recorded real answers, so the app runs and demos without an OpenAI key.
+
+Live mode is used whenever OPENAI_API_KEY is set. Replays are recorded from live runs by
+`uv run python -m app.replay record` and stored in app/replays.json with the model and date.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import time
+from datetime import date
+from pathlib import Path
+
+REPLAYS = Path(__file__).parent / "replays.json"
+
+# The questions offered on the page. Replays exist for exactly these.
+EXAMPLES = [
+    "Who needs my attention this week?",
+    "Are there any medication issues I should know about?",
+    "Were any visits missed or late?",
+    "What open safeguarding cases are there and what is still pending?",
+    "Summarise Alfred Nkemelu's last 7 days.",
+]
+
+
+def mode() -> str:
+    forced = os.environ.get("CARE_AGENT_MODE")
+    if forced in ("live", "replay"):
+        return forced
+    return "live" if os.environ.get("OPENAI_API_KEY") else "replay"
+
+
+def _key(question: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", question.lower()).strip()
+
+
+def _load() -> dict:
+    return json.loads(REPLAYS.read_text()) if REPLAYS.exists() else {"answers": {}}
+
+
+def replay_stream(question: str, pace: float = 1.0):
+    """Yield the same events as agent.ask_stream, from a recording."""
+    data = _load()
+    rec = data["answers"].get(_key(question))
+    if rec is None:
+        raise LookupError(
+            "Replay mode has recorded answers for the example questions only. "
+            "Set OPENAI_API_KEY to ask anything."
+        )
+    for entry in rec["trace"]:
+        yield {"type": "query", "sql": entry["sql"], "params": entry.get("params", [])}
+        time.sleep(0.25 * pace)
+        yield {"type": "result", **entry}
+    for word in re.findall(r"\S+\s*", rec["answer"]):
+        time.sleep(0.012 * pace)
+        yield {"type": "delta", "text": word}
+    yield {"type": "done", **rec, "replay": {"recorded": data.get("recorded"), "model": rec["model"]}}
+
+
+def record(questions: list[str]) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.agent import ask
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        results = list(pool.map(ask, questions))
+    data = {
+        "recorded": date.today().isoformat(),
+        "answers": {_key(q): r for q, r in zip(questions, results, strict=True)},
+    }
+    REPLAYS.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n")
+    print(f"recorded {len(results)} answers to {REPLAYS}")
+
+
+if __name__ == "__main__" and sys.argv[1:] == ["record"]:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    record(EXAMPLES)
