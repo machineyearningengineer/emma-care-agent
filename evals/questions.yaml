@@ -2,6 +2,9 @@
 # each `must_not` is one it must not match. Facts come from NOTES.md section 3.
 - id: attention
   question: Who needs my attention this week?
+  variants:
+    - Is there anyone I should be worried about?
+    - Who's at risk right now?
   must:
     - Alfred
     - Doris
@@ -13,6 +16,9 @@
 
 - id: missed_late
   question: Were any visits missed or late in the last two weeks?
+  variants:
+    - Did any carers turn up late recently?
+    - Which visits were missed?
   must:
     - (planned|scheduled)  # names the missing field…
     - (can.?t|cannot|couldn.?t|could not|not possible|unable|no way|isn.?t possible|not recorded|doesn.?t record|does not record)  # …and says it can't be measured
@@ -21,6 +27,9 @@
 
 - id: medication
   question: Are there any medication issues I should know about?
+  variants:
+    - Has anyone missed their meds?
+    - Any problems with medication?
   must:
     - Iris
     - (completed|marked|recorded as)  # the structured status…
@@ -29,6 +38,9 @@
 
 - id: safeguarding
   question: What open safeguarding cases are there and what is still pending?
+  variants:
+    - What safeguarding is still open?
+    - Which safeguarding reports still need action?
   must:
     - Raymond
     - Iris
@@ -38,6 +50,9 @@
 
 - id: alfred_week
   question: Summarise Alfred Nkemelu's last 7 days.
+  variants:
+    - How has Alfred been this week?
+    - What's been happening with Alfred Nkemelu lately?
   must:
     - near.?fall
     - (fluid|intake|drink)
@@ -46,6 +61,9 @@
 
 - id: care_plans
   question: Which care plans look out of date given recent visit notes?
+  variants:
+    - Are any care plans stale?
+    - Do any care plans need updating?
   must:
     - Alfred
     - Doris
@@ -53,6 +71,8 @@
 
 - id: continuity
   question: Who has had the least continuity of carers?
+  variants:
+    - Which clients see the most different carers?
   must:
     - Jean Whitmore
 

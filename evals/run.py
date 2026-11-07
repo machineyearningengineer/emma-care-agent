@@ -1,6 +1,7 @@
 """Run the golden questions against the agent and check required facts.
 
-uv run python evals/run.py [--model gpt-5.5] [--repeat N] [--only id,id]
+uv run python evals/run.py [--model gpt-5.5] [--repeat N] [--only id,id] [--variants]
+--variants also asks each question the other ways a manager might phrase it (`variants:` in questions.yaml).
 Exit code is non-zero if any check fails.
 """
 
@@ -49,11 +50,24 @@ def main():
     ap.add_argument("--model", default=EVAL_MODEL)
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--only")
+    ap.add_argument("--variants", action="store_true")
     args = ap.parse_args()
 
     cases = yaml.safe_load((HERE / "questions.yaml").read_text())
     if args.only:
         cases = [c for c in cases if c["id"] in args.only.split(",")]
+    if args.variants:
+        cases = [
+            v
+            for c in cases
+            for v in [
+                c,
+                *(
+                    {**c, "question": q, "id": f"{c['id']}~{n}"}
+                    for n, q in enumerate(c.get("variants", []), 1)
+                ),
+            ]
+        ]
     jobs = [c for c in cases for _ in range(args.repeat)]
     with ThreadPoolExecutor(max_workers=6) as pool:
         results = list(pool.map(lambda c: run_one(c, args.model), jobs))
@@ -64,7 +78,8 @@ def main():
         passed = sum(not r["failures"] for r in runs)
         usage = [r.get("usage", {}) for r in runs]
         tokens += sum(u.get("prompt_tokens", 0) + u.get("completion_tokens", 0) for u in usage)
-        print(f"{'PASS' if passed == len(runs) else 'FAIL'}  {passed}/{len(runs)}  {c['id']}")
+        label = f"{c['id']}  ({c['question']})" if "~" in c["id"] else c["id"]
+        print(f"{'PASS' if passed == len(runs) else 'FAIL'}  {passed}/{len(runs)}  {label}")
         for r in runs:
             if r["failures"]:
                 print(f"        missing: {r['failures']}")

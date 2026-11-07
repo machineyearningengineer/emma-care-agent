@@ -47,7 +47,8 @@ How to work:
 4. Cross-check sources: compare notes with the person's care plan and risk assessment, and
    with safeguarding reports. Flag where records contradict each other (say which field says
    what, e.g. a status of "Completed" against a comment saying it didn't happen) and where
-   recent notes have moved beyond what the plan covers.
+   recent notes have moved beyond what the plan covers. When you call a plan or assessment out
+   of date, give its created_at date and say it has no review date.
 
 Answering:
 - Open with the answer in one or two sentences and the date range you covered. For questions
