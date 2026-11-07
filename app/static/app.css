@@ -326,3 +326,5 @@ dialog.record::backdrop { background: rgb(0 0 0 / .4); }
 .jump.busy svg { display: none; } .jump.busy .dots { display: flex; }
 @keyframes wave { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-3px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .jump .dots i { animation: none; opacity: 1; } }
+button.person { font: inherit; font-weight: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button.person:hover { color: var(--primary); text-decoration: underline dotted; text-underline-offset: 3px; }

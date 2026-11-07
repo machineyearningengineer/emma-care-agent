@@ -20,11 +20,11 @@ def overview() -> dict:
     con = connect()
     try:
         org = con.execute("SELECT name FROM org_units ORDER BY id LIMIT 1").fetchone()
-        people = con.execute("SELECT count(*) FROM service_users WHERE status = 'Active'").fetchone()[0]
+        names = [r[0] for r in con.execute("SELECT name FROM service_users WHERE status = 'Active' ORDER BY name")]
         first, last = con.execute("SELECT min(start_time), max(start_time) FROM visits").fetchone()
     finally:
         con.close()
-    return {"org": org[0] if org else None, "people": people, "from": first, "to": last}
+    return {"org": org[0] if org else None, "people": len(names), "names": names, "from": first, "to": last}
 
 
 def visit(visit_id: int) -> dict | None:

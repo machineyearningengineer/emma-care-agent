@@ -8,7 +8,8 @@ let controller = null, seq = 0;
 
 /* ---------- Markdown (escape first, so model text can't inject HTML) ---------- */
 const CITE = /\((visits?|forms?) (\d+(?:, \d+)*)\)/gi;  // ids only; the prompt asks for exactly this
-const inline = (s) => s
+let namesRe = null;  // the people in the data, from /api/meta: the only source of "who is a person here"
+const inlineBase = (s) => s
   .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
   .replace(/`([^`]+)`/g, "<code>$1</code>")
   .replace(CITE, (_, word, ids) => {
@@ -16,6 +17,11 @@ const inline = (s) => s
     const links = ids.split(", ").map((n) => `<button type="button" class="cite" data-kind="${kind}" data-id="${n}">${n}</button>`);
     return `<span class="cites">${word} ${links.join(", ")}</span>`;
   });
+// Full names from the roster become buttons, so "who is a person" never depends on how the model formatted the answer.
+const inline = (s) => {
+  const html = inlineBase(s);
+  return namesRe ? html.replace(namesRe, '<button type="button" class="person" title="Ask about $1">$1</button>') : html;
+};
 function markdown(text) {
   let html = "", list = null, unknowns = false;
   const closeList = () => { if (list) { html += `</${list}>`; list = null; } };
@@ -52,6 +58,7 @@ const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", 
 const day = (s) => DATE.format(new Date(s.replace(" ", "T")));
 fetch("/api/meta").then((r) => r.json()).then((m) => {
   limits = m.limits; q.maxLength = limits.question_chars;
+  if (m.names?.length) namesRe = new RegExp(`(?<![\\w])(${m.names.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w])`, "g");
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
   for (const q of m.examples || []) {
     const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
@@ -417,6 +424,12 @@ function showCited(cited, answer) {
   if (!dlg.open) dlg.showModal();
 }
 $("thread").addEventListener("click", (e) => {
+  const p = e.target.closest(".person");
+  if (p) {  // seed the composer, never send: the manager decides what to ask
+    q.value = `How has ${p.textContent} been this week?`;
+    q.dispatchEvent(new Event("input", { bubbles: true })); q.focus(); q.setSelectionRange(q.value.length, q.value.length);
+    return;
+  }
   const c = e.target.closest(".cite");
   if (c) openRecord(c.dataset.kind, c.dataset.id, null, [sentenceAround(c)]);
 });
