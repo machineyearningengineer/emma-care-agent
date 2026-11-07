@@ -121,6 +121,8 @@ def ask_stream(
     # cached_tokens: prompt tokens the provider served from its prefix cache. Each step's prompt
     # starts with the previous step's, so most of a multi-step question should hit it.
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0, "peak_prompt_tokens": 0}
+    timing: list[dict] = []  # per model call: how long it took and how big its prompt was
+    first_text_s: float | None = None  # seconds from the question to the first word of the answer
 
     for step in range(MAX_STEPS + 1):
         final = (
@@ -130,6 +132,7 @@ def ask_stream(
         )
         text: list[str] = []
         calls: dict[int, dict] = {}
+        step_started, step_prompt = time.perf_counter(), 0
         stream = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -144,6 +147,7 @@ def ask_stream(
         with stream:  # closes the HTTP stream if the caller stops listening
             for chunk in stream:
                 if chunk.usage:
+                    step_prompt = chunk.usage.prompt_tokens
                     usage["prompt_tokens"] += chunk.usage.prompt_tokens
                     usage["peak_prompt_tokens"] = max(usage["peak_prompt_tokens"], chunk.usage.prompt_tokens)
                     usage["completion_tokens"] += chunk.usage.completion_tokens
@@ -153,6 +157,8 @@ def ask_stream(
                     continue
                 delta = chunk.choices[0].delta
                 if delta.content:
+                    if first_text_s is None and not calls:
+                        first_text_s = round(time.perf_counter() - started, 1)
                     text.append(delta.content)
                     yield {"type": "delta", "text": delta.content}
                 for tc in delta.tool_calls or []:
@@ -162,6 +168,7 @@ def ask_stream(
                         c["name"] += tc.function.name or ""
                         c["arguments"] += tc.function.arguments or ""
 
+        timing.append({"model_s": round(time.perf_counter() - step_started, 1), "prompt_tokens": step_prompt})
         if not calls or final:
             answer = "".join(text)
             yield {
@@ -172,6 +179,8 @@ def ask_stream(
                 "steps": step + 1,
                 "usage": usage,
                 "seconds": round(time.perf_counter() - started, 1),
+                "timing": timing,
+                "first_text_s": first_text_s,
                 "prompt": PROMPT_VERSION,
             }
             yield {"type": "suggestions", "questions": follow_ups(question, answer, client)}

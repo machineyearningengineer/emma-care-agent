@@ -61,6 +61,8 @@ class Done(TypedDict):
     steps: int
     usage: Usage
     seconds: float
+    timing: NotRequired[list[dict]]  # per model call: {"model_s", "prompt_tokens"}
+    first_text_s: NotRequired[float | None]  # seconds until the first word of the answer appeared
     prompt: NotRequired[str]  # version of the system prompt that produced the answer
     replay: NotRequired[dict]  # present when played back from a recording
 
