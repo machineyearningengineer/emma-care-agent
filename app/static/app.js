@@ -98,7 +98,7 @@ function apply(t, ev) {
     case "start": t.requestId = ev.request_id; break;
     case "query": t.queries.push({ sql: ev.sql, params: ev.params, result: null }); t.state = "querying"; break;
     case "result": t.queries.at(-1).result = ev; break;
-    case "discard": t.text = ""; break;
+    case "discard": t.text = ""; t.revealed = 0; break;
     case "delta": t.text += ev.text; t.state = "writing"; break;
     case "done": t.done = ev; t.text = ev.answer; t.state = "done"; break;
     case "suggestions": t.suggestions = ev.questions; break;
@@ -113,10 +113,19 @@ const citedRecords = (text) => [...new Set([...text.matchAll(CITE)].flatMap((m) 
 
 // The answer as HTML. While writing, the unfinished tail streams word by word, minus anything half-formed
 // (an open citation, an unclosed **) so no broken piece flashes in.
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Text arrives from the network in bursts. Reveal it at our own pace so it ramps up and settles instead of jumping:
+// quick when far behind, gentle when close.
+const revealing = (t) => t.state === "writing" || t.revealed < t.text.length;
+function advance(t) {
+  const lag = t.text.length - t.revealed;
+  if (still || t.state === "failed" || t.state === "stopped") t.revealed = t.text.length;
+  else if (lag > 0) t.revealed += Math.min(lag, Math.max(2, Math.ceil(lag / 8)));
+}
 function answerHtml(t) {
   if (!t.text) return "";
-  const writing = t.state === "writing";
-  let text = t.text;
+  const writing = revealing(t);
+  let text = writing ? t.text.slice(0, t.revealed) : t.text;
   if (writing) {
     text = text.replace(/\((?:v|f)[a-z]*(?: [\d, ]*)?$/i, "");
     // Hold back a tail that is about to change shape: a bare list marker, or the start of the "can't show" heading.
@@ -160,6 +169,7 @@ function render(t) {
     t.ui.status.last.textContent = last ? (last.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || last.sql).trim() : "";
   }
   t.queries.forEach((qy, i) => stepNode(t, qy, i));
+  advance(t);
   patch(t.ui.answer, answerHtml(t));
   const bad = t.state === "failed" || t.state === "stopped";
   t.ui.error.hidden = !bad;
@@ -170,8 +180,8 @@ function render(t) {
     t.ui.error.querySelector("small").textContent = t.requestId ? `Request ${t.requestId}` : "";
   }
   t.ui.foot.hidden = t.state !== "done";
-  if (t.state === "done" && !t.ui.foot.firstChild) t.ui.foot.append(...footer(t));
-  t.ui.follow.hidden = !(t.state === "done" && t.suggestions?.length);
+  if (t.state === "done" && !revealing(t) && !t.ui.foot.firstChild) t.ui.foot.append(...footer(t));
+  t.ui.follow.hidden = !(t.state === "done" && !revealing(t) && t.suggestions?.length);
   if (!t.ui.follow.hidden && !t.ui.follow.querySelector("button")) {
     for (const text of t.suggestions) {
       const b = el("button", "suggestion"); b.type = "button"; b.textContent = text;
@@ -206,7 +216,7 @@ async function submit(question) {
   $("intro")?.remove();
   q.value = ""; grow();
   const prior = history();
-  const turn = { question, state: "starting", startedAt: performance.now(), queries: [], text: "", done: null, error: null, requestId: null, suggestions: [], ...build(question) };
+  const turn = { question, state: "starting", startedAt: performance.now(), queries: [], text: "", revealed: 0, done: null, error: null, requestId: null, suggestions: [], ...build(question) };
   turn.ui.error.append(retryButton(turn));
   $("thread").append(turn.node);
   turns.push(turn); renderNav();
@@ -214,7 +224,7 @@ async function submit(question) {
   setBusy(true); follow = true;
 
   let raf = 0;
-  const paint = () => { raf = 0; render(turn); keepUp(); };
+  const paint = () => { raf = 0; render(turn); keepUp(); if (revealing(turn)) schedule(); };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
   paint();
   const tick = setInterval(schedule, 1000);  // keeps the elapsed time moving between events

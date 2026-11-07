@@ -155,10 +155,9 @@ main {
 .unknowns > .label { display: block; font: 650 var(--step--1) var(--font-ui); color: var(--caution); margin-bottom: 4px; }
 .unknowns > :last-child { margin-bottom: 0; }
 .caret {
-  display: inline-block; width: 0.5em; height: 1.05em; vertical-align: -0.15em; margin-left: 2px;
-  background: var(--primary); border-radius: 2px; animation: blink 1s steps(2, start) infinite;
+  display: inline-block; width: 2px; height: 1.1em; vertical-align: -0.2em; margin-left: 1px;
+  background: var(--primary); border-radius: 1px;
 }
-@keyframes blink { to { visibility: hidden; } }
 .status { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; color: var(--text-3); font-size: var(--step--1); margin-top: 14px; font-variant-numeric: tabular-nums; }
 .status .spin { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); animation: pulse .9s ease-in-out infinite alternate; }
 .status .txt { background: linear-gradient(90deg, var(--text-3) 30%, var(--primary) 50%, var(--text-3) 70%) 0 0 / 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
