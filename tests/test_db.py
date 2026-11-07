@@ -5,8 +5,7 @@ from app import db
 
 def test_select_and_json_work():
     r = db.run_sql(
-        "SELECT count(*) FROM visits v, json_each(v.activities) a "
-        "WHERE json_extract(a.value, '$.name') = ?",
+        "SELECT count(*) FROM visits v, json_each(v.activities) a WHERE json_extract(a.value, '$.name') = ?",
         ["Medication"],
     )
     assert r["rows"] == [[336]]
@@ -40,9 +39,7 @@ def test_multiple_statements_rejected():
 
 
 def test_timeout():
-    r = db.run_sql(
-        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n) SELECT count(*) FROM n"
-    )
+    r = db.run_sql("WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n) SELECT count(*) FROM n")
     assert "time limit" in r["error"]
 
 

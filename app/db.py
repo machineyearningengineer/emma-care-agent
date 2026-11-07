@@ -82,12 +82,16 @@ def run_sql(sql: str, params: list | None = None, path: Path = DB_PATH) -> dict:
         }
         warnings = []
         if truncated:
-            warnings.append(f"Result cut off after {len(rows)} rows. Rows not shown were not seen: "
-                            "narrow the query (fewer people, shorter window) or aggregate before concluding.")
+            warnings.append(
+                f"Result cut off after {len(rows)} rows. Rows not shown were not seen: "
+                "narrow the query (fewer people, shorter window) or aggregate before concluding."
+            )
         if cells_cut:
             out["cells_truncated"] = True
-            warnings.append(f"Some values were cut at {MAX_CELL_CHARS} characters. Select the fields you need "
-                            "(json_each / json_extract) instead of whole JSON documents.")
+            warnings.append(
+                f"Some values were cut at {MAX_CELL_CHARS} characters. Select the fields you need "
+                "(json_each / json_extract) instead of whole JSON documents."
+            )
         if warnings:
             out["warning"] = " ".join(warnings)
         return out

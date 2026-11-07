@@ -41,8 +41,12 @@ Meaning the schema can't show:
 def describe_schema() -> str:
     con = connect()
     try:
-        tables = [r[0] for r in con.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+        tables = [
+            r[0]
+            for r in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
         out = []
         for t in tables:
             out.append(_describe_table(con, t))
@@ -88,7 +92,7 @@ def _json_shape(values) -> list[tuple[str, str]]:
     leaves: dict[str, list] = {}
     for v in values:
         _walk(json.loads(v), "$", leaves)
-    return [(p, f"  -- values: {l}" if (l := _listable(vs)) else "") for p, vs in leaves.items()]
+    return [(p, f"  -- values: {vals}" if (vals := _listable(vs)) else "") for p, vs in leaves.items()]
 
 
 def _unnest(table: str, column: str, path: str) -> str:

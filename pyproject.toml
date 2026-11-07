@@ -14,8 +14,16 @@ dev = [
     "httpx>=0.28.1",
     "pytest>=9.2.0",
     "pyyaml>=6.0.3",
+    "ruff>=0.17.4",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
