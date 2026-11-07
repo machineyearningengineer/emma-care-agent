@@ -16,8 +16,9 @@ from pathlib import Path
 
 import yaml
 
+from app import records
 from app.agent import ask
-from app.contract import UNKNOWNS, unlinkable_citations
+from app.contract import UNKNOWNS, cited_ids, unlinkable_citations
 
 EVAL_MODEL = "gpt-5.4-mini"  # cheap by default; pass --model gpt-5.5 to check the app's model
 
@@ -33,7 +34,10 @@ def check(case: dict, answer: str) -> list[str]:
     odd = unlinkable_citations(
         answer
     )  # the page turns "(visit 12)" into a button and shows anything else as text
-    return missing + present + unknowns + [f"unlinkable citation {m}" for m in odd]
+    lookup = {"visit": records.visit, "form": records.form}
+    found = sorted(set(cited_ids(answer)))
+    ghosts = [f"no such record ({kind} {n})" for kind, n in found if not lookup[kind](n)]
+    return missing + present + unknowns + [f"unlinkable citation {m}" for m in odd] + ghosts
 
 
 def run_one(case: dict, model: str) -> dict:

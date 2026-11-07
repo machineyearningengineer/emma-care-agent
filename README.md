@@ -1,30 +1,46 @@
 # Care data agent
 
-New here? Read [START_HERE.md](START_HERE.md): one reading order, the flow of a question, and where everything is.
-
-Ask questions in plain English about a home-care provider's visits and forms. The agent
-writes its own SQL against a read-only database, reads the notes it narrowed down, and
-says what the data can't tell you.
+Ask a home-care provider's data a question in plain English. An AI agent writes read-only SQL, reads the
+notes it found, answers with a citation for every claim, and says what the records can't show.
 
 ```bash
 uv sync
-uv run uvicorn app.server:app                # http://localhost:8000
+uv run uvicorn app.server:app      # open http://localhost:8000
 ```
 
-That is all you need. With no OpenAI key the app runs in replay mode: the five example
-questions play back real recorded answers, so you can try the whole page with no key and no
-network. To ask anything else, copy `.env.example` to `.env` and set `OPENAI_API_KEY`
-(the app answers with gpt-5.5; evals use gpt-5.4-mini). The same agent runs in the terminal:
+That is all. With no API key it plays back real recorded answers for the five example questions.
+To ask anything else, copy `.env.example` to `.env` and set `OPENAI_API_KEY`.
 
-```bash
-uv run python -m app.agent "Who needs my attention this week?"
-```
+**Where to go next:** [START_HERE.md](START_HERE.md) is the reading order and code map.
+[docs/journey.html](docs/journey.html) is the full story: every decision, its evidence and trade-off.
+[DEMO.md](DEMO.md) is a ten-minute talk track.
 
-**Two minutes with it.** Open the page and tap *Who needs my attention this week?* Watch the
-queries run, then tap a citation like `visit 293` to open the record behind it. Ask *Were any
-visits missed or late?* and see it say the data can't tell. Tap a suggested follow-up. Open
-[docs/journey.html](docs/journey.html) for the architecture and how it was built, and read
-[DEMO.md](DEMO.md) for a ten-minute talk track with the questions people ask.
+## What it does
+
+| | |
+|---|---|
+| **Happy path.** Ask who needs attention. Each claim cites a record you can open. | ![A ranked answer with citations](docs/media/01-happy-path.png) |
+| **Check the source.** Tap a citation to see the carer's own note next to the claim. | ![A visit record opened from a citation](docs/media/02-citation-record.png) |
+| **Follow up.** Tap a name for four fixed questions about that person. | ![The menu a name opens](docs/media/03-name-menu.png) |
+| **Honest negative.** Visits have no planned times, so it says late and missed can't be measured. | ![The agent saying the data cannot tell](docs/media/04-honest-negative.png) |
+| **Trap.** A visit marked Completed whose note says the medication wasn't given. A report built on status would miss it. | ![The medication issue found in the note](docs/media/05-trap-medication.png) |
+| **Refusal.** It is read-only, and the database refuses writes whatever the model says. | ![A refusal in one sentence](docs/media/06-refusal.png) |
+
+The same agent runs in the terminal: `uv run python -m app.agent "Who needs my attention this week?"`
+
+## One question, in a straight line
+
+1. You type a question and the page sends it (`app/static/app.js`).
+2. The server checks it, gives it a request id and starts the agent (`app/server.py`).
+3. The agent sends the model the question plus a prompt that already holds the schema, the people and a glossary (`app/agent.py`, `app/schema.py`).
+4. The model calls its one tool, `run_sql`, up to 8 times, reading each result before the next query.
+5. Each query runs read-only, with caps on rows, size and time (`app/db.py`).
+6. The answer streams back as lines of JSON: queries, results, then text word by word (`app/events.py`).
+7. The page writes the text as it arrives, turns every `(visit 12)` into a button and every name into a link, and opens the record behind a button when tapped (`app/static/app.js`, `app/records.py`).
+
+**How step 7 works.** Every row the model reads carries the id of its record. The prompt asks it to write ids in one exact form: `(visit 12)`, `(form 4)`, `(visits 12, 15)`. The page escapes the text, then one pattern swaps each match for a button holding the kind and id. A tap fetches that record from `/api/records/...` and shows it beside the sentence of the answer it supports. A citation that doesn't match stays plain text, so mistakes are visible. Evals fail on a citation the page can't link or an id that doesn't exist. Not checked: that the record supports the sentence. The full chain is in the journey page, "How citations work, end to end".
+
+## Settings
 
 | Setting | Default | Effect |
 |---|---|---|

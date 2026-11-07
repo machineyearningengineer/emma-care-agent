@@ -116,6 +116,8 @@ def problems(data: dict) -> list[str]:
             for n in t.get("numbers", [])
             if not n.get("why")
         ]
+    for key in ("flow", "citations"):
+        out += [f"{key} item {i + 1} has no text" for i, x in enumerate(data[key]) if not x.get("text")]
     step_ids = [str(x["id"]) for x in data["steps"]]
     for d in data["decisions"]:
         out += [f"decision {d['id']} has no {k}" for k in ("q", "a", "evidence", "tradeoff") if not d.get(k)]
@@ -183,6 +185,10 @@ def markdown(data: dict) -> tuple[str, dict[str, str]]:
     for r in data["requirements"]:
         by = ", ".join(n["label"] for n in data["nodes"] if r["id"] in n["meets"])
         out.append(f"| {r['id']} | {'FR' if r['kind'] == 'functional' else 'NFR'} | {r['text']} | {by} |")
+    out += ["", "## One question, in a straight line", ""]
+    out += [f"{i}. {x['text']} ({x['where']})" for i, x in enumerate(data["flow"], 1)]
+    out += ["", "## How citations work, end to end", ""]
+    out += [f"{i}. **{x['title']}.** {x['text']} ({x['where']})" for i, x in enumerate(data["citations"], 1)]
     out += ["", "## Decisions and lessons, at a glance", ""]
     for d in data["decisions"]:
         out += [

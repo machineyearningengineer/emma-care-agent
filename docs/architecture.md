@@ -20,6 +20,27 @@ A care manager asks a question in plain language. An agent answers it by queryin
 | nfr-scale | NFR | More data is handled by narrowing with SQL, not by making the prompt longer. | Schema and glossary, Views and full-text index, Evals |
 | nfr-drift | NFR | Typed events, derived numbers and tests keep the code, the prompt and these docs agreeing. | Event protocol, Schema and glossary, Evals |
 
+## One question, in a straight line
+
+1. You type a question and the page sends it. (app/static/app.js (submit))
+2. The server checks it, gives it a request id and starts the agent. (app/server.py (api_ask_stream))
+3. The agent sends the model the question plus a prompt that already holds the schema, the list of people and a glossary. (app/agent.py (SYSTEM), app/schema.py)
+4. The model calls its one tool, run_sql, up to 8 times, each time reading what the last query returned. (app/agent.py (ask_stream))
+5. Each query runs read-only against the database, with caps on rows, size and time. (app/db.py (run_sql))
+6. The answer streams back as lines of JSON: each query, each result, then the text word by word. (app/events.py, app/server.py)
+7. The page writes the text as it arrives. It turns every (visit 12) or (form 4) into a button, every person's name into a link, and opens the record behind a button when tapped. (app/static/app.js (markdown, inline), app/records.py)
+
+## How citations work, end to end
+
+1. **Every row carries the id of its record.** The views the model queries (visit_notes, activity_comments, form_answers) and the search index each return a visit_id or form_id next to the text. So whatever the model reads, it also sees which record it came from. (app/db.py (_READ_MODEL))
+2. **The prompt asks for one exact form.** (visit 12), (form 4) or (visits 12, 15): ids only, one kind per bracket, no ranges, dates in the sentence and not in the brackets. The prompt gives the wrong forms as examples too. (app/agent.py (SYSTEM))
+3. **The model writes the ids into the answer text.** Nothing marks a citation in the stream. It is plain text in the word-by-word events and in the final answer. (app/events.py (delta, done))
+4. **The page turns the text into buttons.** The page first escapes the text so it cannot inject HTML, then one pattern (CITE) swaps each match for a button that carries its kind and id. Anything that does not match stays plain text, so a malformed citation is visible and not silently linked. Names work the same way: the roster the server sends is the only list of who is a person. (app/static/app.js (CITE, inline))
+5. **A tap fetches the record itself.** The button asks the server for the source row: the visit note and each activity, or every section, question and answer of the form. The server reads it from the read-only file and answers 404 for an id that does not exist. The hover preview uses the same fetch, cached. (app/records.py, app/server.py (/api/records))
+6. **The record is shown next to the claim.** The dialog shows the sentence of the answer the citation sits in, above the record as written, so the manager checks the claim against the source. The list of cited records groups records that support the same line. (app/static/app.js (sentenceAround, renderRecord, showCited))
+7. **What is checked.** A test fails if the page's pattern differs from the contract the prompt and evals share. Evals fail an answer with a citation the page cannot link, or one that points at a record that does not exist. Every recorded demo answer is checked the same way. (app/contract.py, tests/test_contracts.py, evals/run.py)
+8. **What is not checked.** That the cited record actually supports the sentence, and that every claim has a citation. The model chooses both. An existing id proves the model did not invent a record, not that it read it correctly. Checking the id was in that run's own results, or having a second model grade support, are the next steps. (docs/journey.yaml (What breaks next))
+
 ## Decisions and lessons, at a glance
 
 ### What is the agent, and why not a library of ready-made queries?

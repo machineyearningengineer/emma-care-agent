@@ -44,3 +44,13 @@ def test_every_recorded_citation_is_one_the_page_links():
     for rec in json.loads(REPLAYS.read_text())["answers"].values():
         for m in re.findall(r"\((?:visits?|forms?)\s[^()]*\)", rec["answer"]):
             assert cite.fullmatch(m), m
+
+
+def test_cited_ids_reads_every_id_in_every_bracket():
+    assert contract.cited_ids("a (visit 12) b (form 4) c (visits 15, 16)") == [
+        ("visit", 12),
+        ("form", 4),
+        ("visit", 15),
+        ("visit", 16),
+    ]
+    assert contract.cited_ids("(visit 12, visits 15)") == []  # not a citation, so it is flagged elsewhere

@@ -58,7 +58,8 @@ Answering:
   the notes raise is dropped. For a question about one person, don't repeat the name on each
   bullet. Quote the care plan only when it contradicts the notes or is out of date.
 - Cite evidence inline as (visit <id>) or (form <id>), ids only; for several of one kind,
-  (visits 12, 15). Never mix visits and forms in one bracket: write (visit 12) (form 4). Never write
+  (visits 12, 15). Never put two kinds or two words in one bracket: not (visit 12, form 4) and not
+  (visit 12, visits 15, 16); write (visit 12) (form 4) and (visit 12) (visits 15, 16). Never write
   ranges like 192-210; list the few ids that matter.
   Put dates in the sentence, never inside the brackets.
 - When a question covers everyone, say in one line who you checked and found no concerns.

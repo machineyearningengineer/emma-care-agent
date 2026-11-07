@@ -2,17 +2,18 @@
 
 One path, in order. Stop after any step; each one stands alone.
 
-## Read in this order (about 30 minutes)
+## Read in this order (about 35 minutes)
 
 1. **Watch it work (3 min).** `uv run uvicorn app.server:app`, open http://localhost:8000, ask
    "Who needs my attention this week?" Tap a citation. Tap a name.
-2. **The short version (5 min).** Open `docs/journey.html`. The first section, "The short version",
-   has every decision with its answer, evidence and trade-off. This is the cheat sheet.
-3. **How one question flows (3 min).** Same page, press **Story**. It walks one question from the
-   browser to the database and back.
-4. **Five ways to think about it (7 min).** Same page. The model is one layer of five. Open one at a time.
-5. **Run the demo (5 min).** `DEMO.md`: happy path, medium path, honest negative, trap, refusal.
-6. **How it was built (optional).** The step cards on the journey page, or `JOURNEY.md` as plain text.
+2. **Straight line and citations (5 min).** The first two sections of `docs/journey.html`: one question
+   end to end, then how a citation gets from a database row to a button.
+3. **The short version (5 min).** Next section: every decision with its answer, evidence and
+   trade-off. This is the cheat sheet.
+4. **Press Story (3 min).** Same page. It walks one question from the browser to the database and back.
+5. **Five ways to think about it (7 min).** Same page. The model is one layer of five. Open one at a time.
+6. **Run the demo (5 min).** `DEMO.md`: happy path, medium path, honest negative, trap, refusal.
+7. **How it was built (optional).** The step cards on the journey page, or `JOURNEY.md` as plain text.
 
 If you only have 5 minutes: steps 1 and 2.
 
@@ -27,6 +28,10 @@ If you only have 5 minutes: steps 1 and 2.
 6. The answer streams back as lines of JSON (`app/events.py`): queries, results, text.
 7. The page shows the text, turns `(visit 12)` into buttons, and opens records from
    `/api/records/visit/{id}` and `/api/records/form/{id}` (`app/records.py`).
+
+**Citations, in one breath:** each row the model reads has its record's id, the prompt asks for `(visit 12)`
+or `(form 4)`, the page turns each match into a button, a tap fetches the record and shows it beside the
+sentence it supports. Full chain: journey page, "How citations work, end to end".
 
 ## Where things are
 

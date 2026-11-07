@@ -16,3 +16,12 @@ UNKNOWNS = re.compile(r"what i couldn.?t determine", re.I)
 
 def unlinkable_citations(answer: str) -> list[str]:
     return [m for m in CITATION_LIKE.findall(answer) if not CITATION.fullmatch(m)]
+
+
+def cited_ids(answer: str) -> list[tuple[str, int]]:
+    """Every (kind, id) a well-formed citation in `answer` points at."""
+    return [
+        ("form" if word.lower().startswith("form") else "visit", int(n))
+        for word, ids in CITATION.findall(answer)
+        for n in ids.split(", ")
+    ]

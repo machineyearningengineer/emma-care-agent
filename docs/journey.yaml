@@ -60,6 +60,48 @@ requirements:
     label: Cannot drift
     text: Typed events, derived numbers and tests keep the code, the prompt and these docs agreeing.
 
+flow:
+  - text: "You type a question and the page sends it."
+    where: app/static/app.js (submit)
+  - text: "The server checks it, gives it a request id and starts the agent."
+    where: app/server.py (api_ask_stream)
+  - text: "The agent sends the model the question plus a prompt that already holds the schema, the list of people and a glossary."
+    where: app/agent.py (SYSTEM), app/schema.py
+  - text: "The model calls its one tool, run_sql, up to 8 times, each time reading what the last query returned."
+    where: app/agent.py (ask_stream)
+  - text: "Each query runs read-only against the database, with caps on rows, size and time."
+    where: app/db.py (run_sql)
+  - text: "The answer streams back as lines of JSON: each query, each result, then the text word by word."
+    where: app/events.py, app/server.py
+  - text: "The page writes the text as it arrives. It turns every (visit 12) or (form 4) into a button, every person's name into a link, and opens the record behind a button when tapped."
+    where: app/static/app.js (markdown, inline), app/records.py
+
+citations:
+  - title: Every row carries the id of its record
+    text: "The views the model queries (visit_notes, activity_comments, form_answers) and the search index each return a visit_id or form_id next to the text. So whatever the model reads, it also sees which record it came from."
+    where: app/db.py (_READ_MODEL)
+  - title: The prompt asks for one exact form
+    text: "(visit 12), (form 4) or (visits 12, 15): ids only, one kind per bracket, no ranges, dates in the sentence and not in the brackets. The prompt gives the wrong forms as examples too."
+    where: app/agent.py (SYSTEM)
+  - title: The model writes the ids into the answer text
+    text: "Nothing marks a citation in the stream. It is plain text in the word-by-word events and in the final answer."
+    where: app/events.py (delta, done)
+  - title: The page turns the text into buttons
+    text: "The page first escapes the text so it cannot inject HTML, then one pattern (CITE) swaps each match for a button that carries its kind and id. Anything that does not match stays plain text, so a malformed citation is visible and not silently linked. Names work the same way: the roster the server sends is the only list of who is a person."
+    where: app/static/app.js (CITE, inline)
+  - title: A tap fetches the record itself
+    text: "The button asks the server for the source row: the visit note and each activity, or every section, question and answer of the form. The server reads it from the read-only file and answers 404 for an id that does not exist. The hover preview uses the same fetch, cached."
+    where: app/records.py, app/server.py (/api/records)
+  - title: The record is shown next to the claim
+    text: "The dialog shows the sentence of the answer the citation sits in, above the record as written, so the manager checks the claim against the source. The list of cited records groups records that support the same line."
+    where: app/static/app.js (sentenceAround, renderRecord, showCited)
+  - title: What is checked
+    text: "A test fails if the page's pattern differs from the contract the prompt and evals share. Evals fail an answer with a citation the page cannot link, or one that points at a record that does not exist. Every recorded demo answer is checked the same way."
+    where: app/contract.py, tests/test_contracts.py, evals/run.py
+  - title: What is not checked
+    text: "That the cited record actually supports the sentence, and that every claim has a citation. The model chooses both. An existing id proves the model did not invent a record, not that it read it correctly. Checking the id was in that run's own results, or having a second model grade support, are the next steps."
+    where: docs/journey.yaml (What breaks next)
+
 decisions:
   - id: shape
     q: "What is the agent, and why not a library of ready-made queries?"
