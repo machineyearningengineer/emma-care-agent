@@ -32,7 +32,7 @@ The same agent runs in the terminal: `uv run python -m app.agent "Who needs my a
 
 ![One question, end to end](docs/media/flow.gif)
 
-[Step through it yourself](docs/flow.html) (open the file in a browser; each step also says what breaks first as data or people grow), or [watch the narrated 3-minute video](docs/media/flow.mp4).
+[Step through it yourself](docs/flow.html) (open the file in a browser; each step also says what breaks first as data or people grow), or [watch the narrated 3.5-minute video](docs/media/flow.mp4) (animated, with what breaks first at scale). To validate it with real care managers, see [the one-page protocol](docs/manager-protocol.md).
 
 1. You type a question and the page sends it (`app/static/app.js`).
 2. The server checks it, gives it a request id and starts the agent (`app/server.py`).

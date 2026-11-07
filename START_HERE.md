@@ -6,8 +6,8 @@ One path, in order. Stop after any step; each one stands alone.
 
 1. **Watch it work (3 min).** `uv run uvicorn app.server:app`, open http://localhost:8000, ask
    "Who needs my attention this week?" Tap a citation. Tap a name.
-2. **Watch one question go end to end (3 min).** Open `docs/flow.html` and press Play: nine steps from the
-   keyboard to a tapped citation, with the real data at each step.
+2. **Watch one question go end to end (4 min).** Play `docs/media/flow.mp4` (narrated, animated, ends with what
+   breaks first), or step through `docs/flow.html`: the same flow with the real data at each step.
 3. **Straight line and citations (5 min).** The first two sections of `docs/journey.html`: the same flow in
    words, then how a citation gets from a database row to a button.
 4. **The short version (5 min).** Next section: every decision with its answer, evidence and
@@ -49,6 +49,7 @@ sentence it supports. Full chain: journey page, "How citations work, end to end"
 | Realistic probe questions | `evals/probes.yaml` |
 | Eval results and lessons | `evals/RESULTS.md` |
 | The journey page | `docs/journey.yaml`, then `uv run python docs/build_journey.py` |
+| Validating with 3 care managers | `docs/manager-protocol.md` |
 
 ## Commands
 

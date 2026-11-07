@@ -732,7 +732,7 @@ next:
   - id: n1
     title: Measure recall with varied text
     problem: Today the agent finds all five real concerns when the quiet people repeat the same text. Real notes vary, so we do not know whether it would still find them. A missed person gives no error.
-    why_not_yet: It needs a bigger test set with varied text, ideally written by someone other than me.
+    why_not_yet: It needs a bigger test set with varied text, ideally written by someone other than me. The protocol for asking three care managers is in docs/manager-protocol.md.
     trigger: Now. It is the one thing we cannot see.
     A: five of five on repeated text
     B: the same check with varied text and a source of realistic size

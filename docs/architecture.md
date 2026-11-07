@@ -690,7 +690,7 @@ Priya, a care manager, opens the page at 8am and asks: Who needs my attention th
 
 - Problem: Today the agent finds all five real concerns when the quiet people repeat the same text. Real notes vary, so we do not know whether it would still find them. A missed person gives no error.
 - Build it when: Now. It is the one thing we cannot see.
-- Why not yet: It needs a bigger test set with varied text, ideally written by someone other than me.
+- Why not yet: It needs a bigger test set with varied text, ideally written by someone other than me. The protocol for asking three care managers is in docs/manager-protocol.md.
 - Before: five of five on repeated text
 - After: the same check with varied text and a source of realistic size
 - Touches: Evals, Agent loop
