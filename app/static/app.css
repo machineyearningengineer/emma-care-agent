@@ -303,11 +303,8 @@ dialog.record::backdrop { background: rgb(0 0 0 / .4); }
 .top-actions { display: flex; align-items: center; gap: 8px; }
 .icon-btn.theme { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; background: none; border-radius: 8px; color: var(--text-3); }
 .icon-btn.theme:hover { color: var(--text); background: var(--surface-2); }
-.rec-group { padding: 12px 0; border-top: 1px solid var(--line); }
 .rec-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%; padding: 0; border: 0; background: none; color: var(--text-2); font: inherit; font-size: .92em; text-align: left; cursor: pointer; }
 .rec-line:hover { color: var(--text); }
-.rec-group .rec-chip { margin-bottom: 4px; }
-.rec-group .rec-line { -webkit-line-clamp: 1; margin-top: 2px; }
 .rec-claim p { margin: 4px 0 0; } .rec-claim p + p { padding-top: 4px; border-top: 1px dashed var(--line-strong); }
 .rec-chip { font: 550 .8em var(--font-ui); font-variant-numeric: tabular-nums; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--surface-2); color: var(--primary); cursor: pointer; }
 .rec-chip:hover { background: var(--primary-wash); }
@@ -332,3 +329,19 @@ button.person:hover { color: var(--primary); text-decoration: underline dotted; 
 .person-menu[hidden] { display: none; }
 .person-menu button { text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; color: var(--text-2); font: inherit; font-size: var(--step--1); cursor: pointer; }
 .person-menu button:hover, .person-menu button:focus-visible { background: var(--primary-wash); color: var(--text); outline: none; }
+.rec-group { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.rec-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.rec-group .rec-chip { margin: 0; background: var(--surface); }
+.rec-chip.form { color: var(--tertiary); }
+.rec-group .rec-line { -webkit-line-clamp: 2; margin-top: 4px; }
+.crumb { display: block; border: 0; background: none; padding: 0; margin: 0 0 12px; color: var(--text-3); font: 550 var(--step--1) var(--font-ui); cursor: pointer; }
+.crumb:hover { color: var(--primary); }
+.rec-body { animation: settle .16s var(--ease) both; }
+@keyframes settle { from { opacity: .4; } }
+.brand .name #asof { color: var(--text-3); font-weight: 400; }
+@media (prefers-reduced-motion: reduce) { .rec-body { animation: none; } }
+.cite-pop { position: fixed; z-index: 31; width: min(320px, calc(100vw - 16px)); display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); font-size: var(--step--1); pointer-events: none; animation: enter .12s ease-out; }
+.cite-pop[hidden] { display: none; }
+.cite-pop span { color: var(--text-3); }
+.cite-pop p { margin: 4px 0 0; color: var(--text-2); }
+@media (hover: none) { .cite-pop { display: none; } }

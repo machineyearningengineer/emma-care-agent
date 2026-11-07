@@ -60,6 +60,7 @@ fetch("/api/meta").then((r) => r.json()).then((m) => {
   limits = m.limits; q.maxLength = limits.question_chars;
   if (m.names?.length) namesRe = new RegExp(`(?<![\\w])(${m.names.map((n) => esc(n).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\w])`, "g");
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
+  $("asof").textContent = ` · records to ${day(m.to)}`;
   for (const q of m.examples || []) {
     const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
     b.addEventListener("click", () => submit(q));
@@ -382,52 +383,86 @@ addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 const dlg = el("dialog", "record");
 document.body.append(dlg);
 dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
-async function openRecord(kind, id, back, claim) {
-  dlg.innerHTML = `<div class="rec-body"><p>Loading…</p></div>`;
+// Content is swapped in one step: while the dialog is open the old record stays until the new one is ready,
+// so moving between records never flashes an empty or "Loading" state.
+function swap(content) {
+  if (typeof content === "string") dlg.innerHTML = content; else dlg.replaceChildren(content);
   if (!dlg.open) dlg.showModal();
-  try {
-    const r = await fetch(`/api/records/${kind}/${id}`);
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-    dlg.innerHTML = renderRecord(await r.json(), claim);
-  } catch (err) {
-    dlg.innerHTML = `<div class="rec-body"><p>Couldn't load this record: ${esc(err.message)}</p><form method="dialog"><button class="link-btn">Close</button></form></div>`;
+  dlg.scrollTop = 0;
+}
+const fetched = new Map();  // one fetch per record, shared by the hover preview and the dialog
+async function getRecord(kind, id) {
+  const key = `${kind}/${id}`;
+  if (!fetched.has(key)) {
+    fetched.set(key, fetch(`/api/records/${key}`).then(async (r) => {
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+      return r.json();
+    }).catch((err) => { fetched.delete(key); throw err; }));
   }
-  if (back) {
-    const b = el("button", "link-btn", "Back to list"); b.type = "button"; b.addEventListener("click", back);
-    dlg.querySelector("form").prepend(b);
+  return fetched.get(key);
+}
+async function openRecord(kind, id, back, claim) {
+  const slow = setTimeout(() => { if (!dlg.open) swap(`<div class="rec-body"><p>Loading…</p></div>`); }, 250);
+  let html;
+  try {
+    html = renderRecord(await getRecord(kind, id), claim);
+  } catch (err) {
+    html = `<div class="rec-body"><p>Couldn't load this record: ${esc(err.message)}</p><form method="dialog"><button class="link-btn">Close</button></form></div>`;
+  }
+  clearTimeout(slow);
+  swap(html);
+  if (back) {  // breadcrumb: a record reached from the citations list can always return to it
+    const b = el("button", "crumb", `‹ ${back.label}`); b.type = "button"; b.addEventListener("click", back.go);
+    dlg.querySelector(".rec-body").prepend(b);
   }
 }
-// One entry per record, with the lines of the answer that rely on it. A single record opens straight away.
+const citedBack = (cited, answer) => ({ label: plural(cited.length, "record") + " cited", go: () => showCited(cited, answer) });
+
+const lineText = (l) => sentenceAround(l.node.querySelector(".cite"));
+// Records that rest on the same lines of the answer share one row, so a line is never repeated.
 function showCited(cited, answer) {
-  const lines = (c) => [...answer.querySelectorAll("li, p")].filter((n) => n.querySelector(`.cite[data-kind="${c.kind}"][data-id="${c.id}"]`)).map((node) => ({ node, text: sentenceAround(node.querySelector(".cite")) }));
-  const back = () => showCited(cited, answer);
-  if (cited.length === 1) return openRecord(cited[0].kind, cited[0].id, null, lines(cited[0]).map((l) => l.text));
+  const lines = [...answer.querySelectorAll("li, p")]
+    .map((node) => ({ node, keys: new Set([...node.querySelectorAll(".cite[data-id]")].map((k) => `${k.dataset.kind}:${k.dataset.id}`)) }))
+    .filter((l) => l.keys.size);
+  const back = citedBack(cited, answer);
+  const rows = new Map();
+  for (const c of cited) {
+    const at = lines.filter((l) => l.keys.has(`${c.kind}:${c.id}`)), key = at.map((l) => lines.indexOf(l)).join();
+    if (!rows.has(key)) rows.set(key, { at, records: [] });
+    rows.get(key).records.push(c);
+  }
+  if (cited.length === 1) { const [{ at }] = rows.values(); return openRecord(cited[0].kind, cited[0].id, null, at.map(lineText)); }
   const list = el("div", "rec-body");
   list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3><p class="rec-meta">Tap a record to read it, or a line to find it in the answer.</p>`;
-  for (const c of cited) {
-    const at = lines(c), group = el("div", "rec-group");
-    const chip = el("button", "rec-chip", `${c.kind === "visit" ? "Visit" : "Form"} ${c.id}`); chip.type = "button";
-    chip.addEventListener("click", () => openRecord(c.kind, c.id, back, at.map((l) => l.text)));
-    group.append(chip);
-    for (const { node, text } of at) {
-      const line = el("button", "rec-line"); line.type = "button"; line.textContent = text;
+  for (const { at, records } of rows.values()) {
+    const group = el("div", "rec-group"), chips = el("div", "rec-chips");
+    for (const c of records) {
+      const chip = el("button", `rec-chip ${c.kind}`, `${c.kind === "visit" ? "Visit" : "Form"} ${c.id}`); chip.type = "button";
+      chip.addEventListener("click", () => openRecord(c.kind, c.id, back, at.map(lineText)));
+      chips.append(chip);
+    }
+    group.append(chips);
+    for (const l of at) {
+      const line = el("button", "rec-line"); line.type = "button"; line.textContent = lineText(l);
       line.addEventListener("click", () => {
-        dlg.close(); node.scrollIntoView({ block: "center", behavior: "smooth" });
-        node.classList.add("flash"); setTimeout(() => node.classList.remove("flash"), 2200);
+        dlg.close(); l.node.scrollIntoView({ block: "center", behavior: "smooth" });
+        l.node.classList.add("flash"); setTimeout(() => l.node.classList.remove("flash"), 2200);
       });
       group.append(line);
     }
     list.append(group);
   }
   list.insertAdjacentHTML("beforeend", `<form method="dialog"><button class="link-btn">Close</button></form>`);
-  dlg.replaceChildren(list);
-  if (!dlg.open) dlg.showModal();
+  swap(list);
 }
 $("thread").addEventListener("click", (e) => {
   const p = e.target.closest(".person");
   if (p) { showPersonMenu(p); return; }
   const c = e.target.closest(".cite");
-  if (c) openRecord(c.dataset.kind, c.dataset.id, null, [sentenceAround(c)]);
+  if (c) {
+    const t = turns.find((x) => x.ui.answer.contains(c)), cited = t ? citedRecords(t.text) : [];
+    openRecord(c.dataset.kind, c.dataset.id, cited.length > 1 ? citedBack(cited, t.ui.answer) : null, [sentenceAround(c)]);
+  }
 });
 // The line of the answer a citation belongs to, so the record can say what it is being checked against.
 const sentenceAround = (cite) => {
@@ -480,7 +515,7 @@ themeBtn.addEventListener("click", () => {
 });
 showTheme();
 
-/* ---------- Drill-down: a name offers a few fixed questions. Choosing one fills the composer; the manager sends it. ---------- */
+/* ---------- Drill-down: a name offers a few fixed questions. Choosing one asks it, like the "Ask next" chips. ---------- */
 const DRILLS = [
   (n) => `How has ${n} been this week?`,
   (n) => `What changed for ${n} this week compared with the week before?`,
@@ -493,10 +528,7 @@ function showPersonMenu(anchor) {
   const name = anchor.textContent;
   menu.replaceChildren(...DRILLS.map((ask) => {
     const text = ask(name), b = el("button", "", ""); b.type = "button"; b.textContent = text; b.setAttribute("role", "menuitem");
-    b.addEventListener("click", () => {
-      q.value = text; q.dispatchEvent(new Event("input", { bubbles: true })); hideMenu();
-      q.focus(); q.setSelectionRange(q.value.length, q.value.length);
-    });
+    b.addEventListener("click", () => { hideMenu(); submit(text); });
     return b;
   }));
   menu.hidden = false;
@@ -508,3 +540,34 @@ function showPersonMenu(anchor) {
 addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest(".person, .person-menu")) hideMenu(); });
 addEventListener("keydown", (e) => { if (e.key === "Escape") hideMenu(); });
 addEventListener("scroll", hideMenu, { passive: true });
+
+/* ---------- Hover preview: who, when and the first words, before anyone taps ---------- */
+const pop = el("div", "cite-pop"); pop.hidden = true; pop.setAttribute("role", "tooltip"); document.body.append(pop);
+let popFor = null, popTimer = 0;
+const clip = (t, n) => (t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t);
+function previewHtml(r) {
+  if (r.kind === "visit") {
+    return `<strong>Visit ${r.id} · ${esc(r.person || "")}</strong><span>${when(r.start_time, r.end_time)} · carer ${esc(r.carer || "unknown")}</span><p>${esc(clip(r.note || "No note", 150))}</p>`;
+  }
+  const first = (r.sections || []).flatMap((x) => x.items || []).find((i) => i.answer);
+  return `<strong>${esc(r.form || "Form")} ${r.id}${r.person ? " · " + esc(r.person) : ""}</strong><span>created ${when(r.created_at)}</span>${first ? `<p>${esc(clip(String(first.answer), 150))}</p>` : ""}`;
+}
+function hidePop() { clearTimeout(popTimer); popFor = null; pop.hidden = true; }
+$("thread").addEventListener("mouseover", (e) => {
+  const c = e.target.closest(".cite");
+  if (!c || c === popFor) return;
+  hidePop(); popFor = c;
+  popTimer = setTimeout(async () => {
+    try {
+      const r = await getRecord(c.dataset.kind, c.dataset.id);
+      if (popFor !== c) return;
+      pop.innerHTML = previewHtml(r); pop.hidden = false;
+      const b = c.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+      pop.style.left = `${Math.max(8, Math.min(b.left + b.width / 2 - w / 2, innerWidth - w - 8))}px`;
+      pop.style.top = `${b.top - h - 8 < 8 ? b.bottom + 8 : b.top - h - 8}px`;
+    } catch { /* no preview: tapping still shows the error */ }
+  }, 220);
+});
+$("thread").addEventListener("mouseout", (e) => { if (e.target.closest(".cite") && !e.relatedTarget?.closest?.(".cite")) hidePop(); });
+addEventListener("scroll", hidePop, { passive: true });
+addEventListener("click", hidePop);
