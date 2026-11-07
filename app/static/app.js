@@ -2,19 +2,19 @@ const $ = (id) => document.getElementById(id);
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtInt = (n) => Number(n).toLocaleString();
-const history = [];   // {role, content} sent back for follow-ups
-const turns = [];     // {node, question, answer}
+let limits = { question_chars: 2000, history_messages: 6 };  // replaced by /api/meta
+const turns = [];     // one object per question: its state, data and nodes
 let controller = null, seq = 0;
 
 /* ---------- Markdown (escape first, so model text can't inject HTML) ---------- */
-const CITE = /\((?:visits?|forms?)\s[^()]{1,80}\)/gi;
+const CITE = /\((visits?|forms?) (\d+(?:, \d+)*)\)/gi;  // ids only; the prompt asks for exactly this
 const inline = (s) => s
   .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
   .replace(/`([^`]+)`/g, "<code>$1</code>")
-  .replace(CITE, (m) => {
-    const kind = /^\(form/i.test(m) ? "form" : "visit";
-    const body = m.slice(1, -1).replace(/(?<![\d-])\d+(?![\d-])(?!\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec))/g, (n) => `<button type="button" class="cite" data-kind="${kind}" data-id="${n}">${n}</button>`);
-    return `<span class="cites">${body}</span>`;
+  .replace(CITE, (_, word, ids) => {
+    const kind = word.toLowerCase().startsWith("form") ? "form" : "visit";
+    const links = ids.split(", ").map((n) => `<button type="button" class="cite" data-kind="${kind}" data-id="${n}">${n}</button>`);
+    return `<span class="cites">${word} ${links.join(", ")}</span>`;
   });
 function markdown(text) {
   let html = "", list = null, unknowns = false;
@@ -51,6 +51,7 @@ const snippet = (text) => text.replace(/[#*`]/g, "").replace(/\s+/g, " ").trim()
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const day = (s) => DATE.format(new Date(s.replace(" ", "T")));
 fetch("/api/meta").then((r) => r.json()).then((m) => {
+  limits = m.limits; q.maxLength = limits.question_chars;
   $("facts").textContent = `${m.people} people, visits from ${day(m.from)} to ${day(m.to)}.`;
   for (const q of m.examples || []) {
     const b = el("button", "suggestion"); b.type = "button"; b.textContent = q;
@@ -85,46 +86,104 @@ function setBusy(busy) {
   b.disabled = !busy && !q.value.trim();
 }
 
-/* ---------- One question ---------- */
-async function submit(question) {
-  $("intro")?.remove();
-  q.value = ""; grow();
-  controller = new AbortController();
-  setBusy(true);
-  follow = true;
+/* ---------- One question: its state is data; the page is derived from it ----------
+   starting → querying → writing → done, or failed / stopped from anywhere. */
+const history = () => turns
+  .filter((t) => t.state === "done")
+  .flatMap((t) => [{ role: "user", content: t.question }, { role: "assistant", content: t.text }])
+  .slice(-limits.history_messages);
 
+function apply(t, ev) {
+  switch (ev.type) {
+    case "start": t.requestId = ev.request_id; break;
+    case "query": t.queries.push({ sql: ev.sql, params: ev.params, result: null }); t.state = "querying"; break;
+    case "result": t.queries.at(-1).result = ev; break;
+    case "discard": t.text = ""; break;
+    case "delta": t.text += ev.text; t.state = "writing"; break;
+    case "done": t.done = ev; t.text = ev.answer; t.state = "done"; break;
+    case "suggestions": t.suggestions = ev.questions; break;
+    case "error": t.requestId = ev.request_id || t.requestId; t.error = ev.detail; t.state = "failed"; break;
+  }
+}
+
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const queriesOf = (n) => (n === 1 ? "1 query" : `${n} queries`);
+const citedRecords = (text) => new Set([...text.matchAll(CITE)].flatMap((m) => m[2].split(", ").map((n) => `${m[1][0]}${n}`.toLowerCase()))).size;
+
+function render(t) {
+  const n = t.queries.length, running = t.state === "starting" || t.state === "querying";
+  const label = { starting: "Starting…", querying: `Running query ${n}`, writing: queriesOf(n),
+    done: `${queriesOf(n)} · ${t.done?.seconds}s`, failed: `${queriesOf(n)} · failed`, stopped: "Stopped" }[t.state];
+  t.ui.label.textContent = label;
+  if (t.ui.shown !== t.state) { t.ui.activity.open = running; t.ui.shown = t.state; }  // open while working, fold when writing starts
+  t.ui.status.hidden = !running;
+  t.ui.status.textContent = t.state === "starting" ? "Reading the schema…" : `Running query ${n}…`;
+  t.queries.forEach((qy, i) => stepNode(t, qy, i));
+  t.ui.answer.innerHTML = t.text ? markdown(t.text) + (t.state === "writing" ? '<span class="caret"></span>' : "") : "";
+  const bad = t.state === "failed" || t.state === "stopped";
+  t.ui.error.hidden = !bad;
+  if (bad) {
+    const stopped = t.state === "stopped";
+    t.ui.error.querySelector("strong").textContent = stopped ? "Stopped" : "This answer failed";
+    t.ui.error.querySelector("span").textContent = stopped ? "You stopped this answer. Nothing was saved." : t.error;
+    t.ui.error.querySelector("small").textContent = t.requestId ? `Request ${t.requestId}` : "";
+  }
+  t.ui.foot.hidden = t.state !== "done";
+  if (t.state === "done" && !t.ui.foot.firstChild) t.ui.foot.append(...footer(t));
+  t.ui.follow.hidden = !(t.state === "done" && t.suggestions?.length);
+  if (!t.ui.follow.hidden && !t.ui.follow.querySelector("button")) {
+    for (const text of t.suggestions) {
+      const b = el("button", "suggestion"); b.type = "button"; b.textContent = text;
+      b.addEventListener("click", () => submit(text));
+      t.ui.follow.append(b);
+    }
+  }
+}
+
+function build(question) {
   const node = el("article", "turn");
   node.id = `t${++seq}`;
   node.append(el("h2", null, esc(question)));
-  const activity = el("details", "activity"); activity.open = true;
-  const summary = el("summary", null, `<span class="label">Starting…</span><span class="chev" aria-hidden="true">›</span>`);
+  const activity = el("details", "activity");
+  const summary = el("summary", null, `<span class="label"></span><span class="chev" aria-hidden="true">›</span>`);
   const steps = el("ol", "steps");
   activity.append(summary, steps);
+  const status = el("div", "status");
   const answer = el("div", "answer");
-  const status = el("div", "status", "Reading the schema…");
-  node.append(activity, status, answer);
-  $("thread").append(node);
-  const turn = { node, question, answer: "" };
+  const error = el("div", "error"); error.hidden = true;
+  error.innerHTML = "<strong></strong><span></span><small></small>";
+  const foot = el("div", "foot"); foot.hidden = true;
+  const next = el("div", "follow"); next.hidden = true;
+  next.append(el("span", "label", "Ask next"));
+  node.append(activity, status, answer, error, foot, next);
+  return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null } };
+}
+
+async function submit(question) {
+  $("intro")?.remove();
+  q.value = ""; grow();
+  const prior = history();
+  const turn = { question, state: "starting", queries: [], text: "", done: null, error: null, requestId: null, suggestions: [], ...build(question) };
+  turn.ui.error.append(retryButton(turn));
+  $("thread").append(turn.node);
   turns.push(turn); renderNav();
-  keepUp();
+  controller = new AbortController();
+  setBusy(true); follow = true;
 
-  let text = "", queries = 0, requestId = null, raf = 0, current = null, done = null;
-  const paint = () => { raf = 0; answer.innerHTML = markdown(text) + (done ? "" : '<span class="caret"></span>'); keepUp(); };
+  let raf = 0;
+  const paint = () => { raf = 0; render(turn); keepUp(); };
   const schedule = () => { if (!raf) raf = requestAnimationFrame(paint); };
-  const label = (s) => { summary.querySelector(".label").textContent = s; };
-
+  paint();
   try {
     const res = await fetch("/api/ask/stream", {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
-      body: JSON.stringify({ question, history: history.slice(-6) }),
+      body: JSON.stringify({ question, history: prior }),
     });
-    requestId = res.headers.get("X-Request-ID");
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(Array.isArray(body.detail) ? body.detail.map((d) => d.msg).join("; ") : body.detail || res.statusText);
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
+    const reader = res.body.getReader(), decoder = new TextDecoder();
     let buffer = "";
     for (;;) {
       const { value, done: end } = await reader.read();
@@ -133,98 +192,61 @@ async function submit(question) {
       let nl;
       while ((nl = buffer.indexOf("\n")) >= 0) {
         const line = buffer.slice(0, nl); buffer = buffer.slice(nl + 1);
-        if (!line.trim()) continue;
-        const ev = JSON.parse(line);
-        if (ev.type === "start") { requestId = ev.request_id; label("Planning queries"); }
-        else if (ev.type === "query") {
-          queries += 1;
-          current = addStep(steps, ev);
-          label(`Running query ${queries}`); status.textContent = `Running query ${queries}…`;
-          keepUp();
-        } else if (ev.type === "result") { finishStep(current, ev); }
-        else if (ev.type === "delta") {
-          if (!text) { status.remove(); label(`${queries} ${queries === 1 ? "query" : "queries"}`); activity.open = false; }
-          text += ev.text; schedule();
-        } else if (ev.type === "discard") { text = ""; schedule(); }
-        else if (ev.type === "done") { done = ev; text = ev.answer; }
-        else if (ev.type === "suggestions") { suggest(ev.questions || []); }
-        else if (ev.type === "error") { requestId = ev.request_id || requestId; throw new Error(ev.detail); }
+        if (line.trim()) { apply(turn, JSON.parse(line)); schedule(); }
       }
     }
-    if (!done) throw new Error("The connection closed before the answer finished.");
-    cancelAnimationFrame(raf); paint();
-    label(`${queries} ${queries === 1 ? "query" : "queries"} · ${done.seconds}s`);
-    turn.answer = done.answer; renderNav();
-    history.push({ role: "user", content: question }, { role: "assistant", content: done.answer });
-    node.append(footer(done, requestId));
+    if (turn.state !== "done" && turn.state !== "failed") { turn.error = "The connection closed before the answer finished."; turn.state = "failed"; }
   } catch (err) {
-    cancelAnimationFrame(raf);
-    status.remove();
-    if (text) { done = {}; paint(); }
-    const stopped = err.name === "AbortError";
-    label(stopped ? "Stopped" : `${queries} ${queries === 1 ? "query" : "queries"} · failed`);
-    if (current && !current.dataset.done) finishStep(current, { error: stopped ? "stopped" : "no result" });
-    const box = el("div", "error");
-    box.innerHTML = `<strong>${stopped ? "Stopped" : "This answer failed"}</strong>
-      <span>${esc(stopped ? "You stopped this answer. Nothing was saved." : err instanceof TypeError ? "Couldn't reach the server. Check that it is still running, then ask again." : err.message)}</span>
-      ${requestId ? `<small>Request ${esc(requestId)}</small>` : ""}`;
-    const retry = el("button", "link-btn", "Ask again"); retry.type = "button";
-    retry.addEventListener("click", () => {  // replace the failed turn rather than stacking another under it
-      node.remove(); turns.splice(turns.indexOf(turn), 1); renderNav(); submit(question);
-    });
-    box.append(retry);
-    node.append(box);
-    turn.answer = stopped ? "Stopped." : "Failed."; renderNav();
+    if (err.name === "AbortError") turn.state = "stopped";
+    else {
+      turn.state = "failed";
+      turn.error = err instanceof TypeError ? "Couldn't reach the server. Check that it is still running, then ask again." : err.message;
+    }
   } finally {
+    cancelAnimationFrame(raf); paint(); renderNav();
     controller = null; setBusy(false); $("jump").classList.remove("show");
     if (window.matchMedia("(pointer: fine)").matches) q.focus();
   }
 }
 
-function addStep(list, ev) {
-  const li = el("li", "step");
-  const d = el("details");
-  const first = ev.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || ev.sql;
-  d.innerHTML = `<summary><span class="dot running"></span><span class="sql-line">${esc(first.trim())}</span>
-    <span class="step-meta">running</span></summary>
-    <pre>${esc(ev.sql.trim())}${ev.params?.length ? "\n-- params: " + esc(JSON.stringify(ev.params)) : ""}</pre>`;
-  li.append(d); list.append(li);
-  return li;
+function retryButton(turn) {  // replace the failed turn rather than stacking another under it
+  const b = el("button", "link-btn", "Ask again"); b.type = "button";
+  b.addEventListener("click", () => { turn.node.remove(); turns.splice(turns.indexOf(turn), 1); renderNav(); submit(turn.question); });
+  return b;
 }
-function finishStep(li, ev) {
-  if (!li) return;
-  li.dataset.done = "1";
-  const dot = li.querySelector(".dot"), meta = li.querySelector(".step-meta");
-  dot.classList.remove("running");
-  if (ev.error) {
-    dot.classList.add("danger"); meta.classList.add("danger");
-    meta.textContent = ev.error === "stopped" ? "stopped" : "error";
-    if (ev.error !== "stopped" && ev.error !== "no result") li.querySelector("pre").append(`\n-- error: ${ev.error}`);
-    return;
+
+function stepNode(t, qy, i) {
+  let li = t.ui.steps.children[i];
+  if (!li) {
+    li = el("li", "step");
+    const first = qy.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || qy.sql;
+    li.innerHTML = `<details><summary><span class="dot"></span><span class="sql-line">${esc(first.trim())}</span><span class="step-meta"></span></summary>
+      <pre>${esc(qy.sql.trim())}${qy.params?.length ? "\n-- params: " + esc(JSON.stringify(qy.params)) : ""}</pre></details>`;
+    t.ui.steps.append(li);
   }
-  const cut = ev.truncated || ev.cells_truncated;
-  dot.classList.add(cut ? "caution" : "ok");
-  meta.classList.toggle("caution", cut);
-  meta.textContent = `${fmtInt(ev.row_count)} ${ev.row_count === 1 ? "row" : "rows"}${ev.truncated ? ", cut off" : ev.cells_truncated ? ", text cut" : ""} · ${ev.ms} ms`;
+  const r = qy.result, dot = li.querySelector(".dot"), meta = li.querySelector(".step-meta");
+  const over = t.state === "stopped" || t.state === "failed";
+  const state = r ? (r.error ? "danger" : r.truncated || r.cells_truncated ? "caution" : "ok") : over ? "danger" : "running";
+  dot.className = `dot ${state}`; meta.className = `step-meta ${state === "danger" || state === "caution" ? state : ""}`;
+  if (!r) meta.textContent = over ? (t.state === "stopped" ? "stopped" : "no result") : "running";
+  else if (r.error) meta.textContent = "error";
+  else meta.textContent = `${fmtInt(r.row_count)} ${r.row_count === 1 ? "row" : "rows"}${r.truncated ? ", cut off" : r.cells_truncated ? ", text cut" : ""} · ${r.ms} ms`;
+  if (r?.error && !li.querySelector("pre").textContent.includes("-- error")) li.querySelector("pre").append(`\n-- error: ${r.error}`);
 }
-function footer(done, requestId) {
-  const f = el("div", "foot");
-  const tokens = (done.usage?.prompt_tokens || 0) + (done.usage?.completion_tokens || 0);
-  const parts = [];
-  if (done.replay) parts.push(`Recorded answer from ${esc(done.replay.model)} on ${esc(done.replay.recorded)}`);
-  else parts.push(esc(done.model));
-  parts.push(`${done.seconds}s`);
+
+function footer(t) {
+  const d = t.done, tokens = (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0), cited = citedRecords(t.text);
+  const parts = [d.replay ? `Recorded answer from ${d.replay.model} on ${d.replay.recorded}` : d.model, `${d.seconds}s`];
+  if (cited) parts.push(plural(cited, "record") + " cited");
   if (tokens) parts.push(`${fmtInt(tokens)} tokens`);
-  if (requestId) parts.push(`request ${esc(requestId)}`);
-  f.innerHTML = parts.map((p) => `<span>${p}</span>`).join("");
+  if (t.requestId) parts.push(`request ${t.requestId}`);
   const copy = el("button", "link-btn", "Copy answer"); copy.type = "button";
   copy.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(done.answer); copy.textContent = "Copied"; }
+    try { await navigator.clipboard.writeText(t.text); copy.textContent = "Copied"; }
     catch { copy.textContent = "Couldn't copy"; }
     setTimeout(() => (copy.textContent = "Copy answer"), 1600);
   });
-  f.append(copy);
-  return f;
+  return [...parts.map((p) => Object.assign(el("span"), { textContent: p })), copy];
 }
 
 /* ---------- Navigation: minimap rail (wide) and bottom sheet (narrow) ---------- */
@@ -243,7 +265,7 @@ function renderNav() {
     return b;
   }));
   $("sheetList").replaceChildren(...turns.map((t, i) => {
-    const b = el("button", null, `<strong>${esc(t.question)}</strong><span>${esc(snippet(t.answer) || "Answering…")}</span>`);
+    const b = el("button", null, `<strong>${esc(t.question)}</strong><span>${esc(snippet(t.text) || (t.state === "failed" ? "Failed" : t.state === "stopped" ? "Stopped" : "Answering…"))}</span>`);
     b.type = "button"; b.addEventListener("click", () => go(i));
     return b;
   }));
@@ -251,7 +273,7 @@ function renderNav() {
 }
 function showPeek(tick, t) {
   peek.querySelector("strong").textContent = t.question;
-  peek.querySelector("span").textContent = snippet(t.answer) || "Answering…";
+  peek.querySelector("span").textContent = snippet(t.text) || (t.state === "failed" ? "Failed" : t.state === "stopped" ? "Stopped" : "Answering…");
   const r = tick.getBoundingClientRect();
   peek.style.left = `${r.right + 18}px`;
   peek.style.top = `${Math.max(12, Math.min(innerHeight - 140, r.top - 28))}px`;
@@ -275,19 +297,6 @@ const closeSheet = () => document.body.classList.remove("sheet-open");
 $("openSheet").addEventListener("click", openSheet);
 $("scrim").addEventListener("click", closeSheet);
 addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
-
-/* ---------- Follow-up suggestions: the next likely question, shown as the placeholder and chips ---------- */
-function suggest(list) {
-    document.querySelectorAll(".follow").forEach((n) => n.remove());
-  if (!list.length) return;
-  const box = el("div", "follow");
-  for (const text of list) {
-    const b = el("button", "suggestion"); b.type = "button"; b.textContent = text;
-    b.addEventListener("click", () => submit(text));
-    box.append(b);
-  }
-  turns.at(-1).node.append(box); keepUp();
-}
 
 /* ---------- Citations open the source record ---------- */
 const dlg = el("dialog", "record");
