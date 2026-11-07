@@ -49,6 +49,9 @@ def _show(value) -> str:
 
 
 def commits_exist(data: dict) -> list[str]:
+    """Listed commits missing from history. Outside a git checkout (an exported zip) nothing is checked."""
+    if subprocess.run(["git", "rev-parse"], cwd=ROOT, capture_output=True).returncode != 0:
+        return []
     missing = []
     for step in data["steps"]:
         for sha in step.get("commits", []):
