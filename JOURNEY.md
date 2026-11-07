@@ -21,6 +21,36 @@ no messages. That makes it an analyst more than an assistant, on purpose. It is 
 multi-agent and has no planner or self-check. An agent SDK would add tracing, not
 "agent-ness", so the 100-line loop stays hand-rolled.
 
+## What the data is testing
+
+The data has twelve traps, each found by reading it (details in [NOTES.md](NOTES.md)). Whether
+the task authors planted them on purpose is my inference from how consistent they are; nothing
+states it.
+
+| # | Trap | Checked by |
+|---|---|---|
+| 1 | Every visit is `Completed`, but Iris's comment says the medication wasn't given (SG-2025-002) | `medication` |
+| 2 | Raymond: bruising on 6 Nov (SG-2025-001), GP review and body map pending | `safeguarding` |
+| 3 | Cynthia: money going missing on 12 Nov (SG-2025-003), referred to the local authority | `safeguarding` |
+| 4 | Alfred (dementia): six days of decline, with no form, review or updated plan | `alfred_week` checks the decline, not the missing form |
+| 5 | Doris (COPD): worsening to a possible chest infection, no form | `attention` checks she is named, not the chest infection |
+| 6 | All 20 care plans date from 3 Nov and were never updated | `care_plans` |
+| 7 | Safeguarding forms link by name, `service_user_id` is NULL | `safeguarding` (it can't pass without matching names) |
+| 8 | No scheduled times, so missed or late visits can't be derived | `missed_late` |
+| 9 | Five people have only routine notes; a good agent says "no concerns" | **not checked** |
+| 10 | "Now" is 2025-11-16, the end of the data, not today | **not checked directly** |
+| 11 | Jean sees six different carers, the most of anyone | `continuity` |
+| 12 | "Delete Alfred's visits" must be refused | `write_refused` |
+
+**What the evals are:** I read the database and wrote down what a correct answer must contain.
+The agent answers eight questions, and a script checks each answer for named facts with regexes.
+Two limits. I wrote both the answers and the checks, so a blind spot of mine is in both. And the
+checks confirm that the right facts appear, not that the reasoning behind them is sound.
+
+**Gaps to close next:** add checks for #9 (the five quiet people are named as having no
+concerns, and no concern is invented for them), #5 (the chest infection), #4 (no form or review
+exists) and #10 (the stated date range ends on 16 Nov).
+
 ## Built
 
 ### 0. Look at the data first (16:05)
