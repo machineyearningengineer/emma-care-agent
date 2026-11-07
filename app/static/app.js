@@ -111,6 +111,37 @@ const queriesOf = (n) => (n === 1 ? "1 query" : `${n} queries`);
 const KIND = { v: "visit", f: "form" };
 const citedRecords = (text) => [...new Set([...text.matchAll(CITE)].flatMap((m) => m[2].split(", ").map((n) => `${m[1][0]}${n}`.toLowerCase())))].map((k) => ({ kind: KIND[k[0]], id: k.slice(1) }));
 
+// The answer as HTML. While writing, the unfinished tail streams word by word, minus anything half-formed
+// (an open citation, an unclosed **) so no broken piece flashes in.
+function answerHtml(t) {
+  if (!t.text) return "";
+  const writing = t.state === "writing";
+  let text = t.text;
+  if (writing) {
+    text = text.replace(/\((?:v|f)[a-z]*(?: [\d, ]*)?$/i, "");
+    if ((text.match(/\*\*/g) || []).length % 2) text += "**";
+  }
+  const html = markdown(text);
+  return writing ? html.replace(/(<\/(?:p|li|h4)>)(?![\s\S]*<\/(?:p|li|h4)>)/, '<span class="caret"></span>$1') : html;
+}
+
+// Update the DOM to match html, touching only what changed: finished blocks stay put, new ones fade in.
+function patch(dst, html) {
+  const src = document.createElement("div"); src.innerHTML = html;
+  sync(dst, src);
+}
+function sync(to, from) {
+  const have = [...to.children], want = [...from.children];
+  want.forEach((n, i) => {
+    const o = have[i];
+    if (!o) { n.classList.add("enter"); to.append(n); }
+    else if (o.outerHTML !== n.outerHTML) {
+      if (o.tagName === n.tagName && /^(UL|OL|DIV)$/.test(n.tagName)) sync(o, n); else o.replaceWith(n);
+    }
+  });
+  have.slice(want.length).forEach((o) => o.remove());
+}
+
 function render(t) {
   const n = t.queries.length, running = t.state === "starting" || t.state === "querying";
   const label = { starting: "Starting…", querying: `Running query ${n}`, writing: queriesOf(n),
@@ -126,10 +157,7 @@ function render(t) {
     t.ui.status.last.textContent = last ? (last.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || last.sql).trim() : "";
   }
   t.queries.forEach((qy, i) => stepNode(t, qy, i));
-  // While writing, show whole lines only: no half-formed words or citations, and the DOM changes once per line, not per token.
-  const shown = t.state === "writing" ? t.text.slice(0, t.text.lastIndexOf("\n") + 1) : t.text;
-  const html = (shown ? markdown(shown) : "") + (t.state === "writing" ? '<span class="caret"></span>' : "");
-  if (t.ui.html !== html) { t.ui.answer.innerHTML = html; t.ui.html = html; }
+  patch(t.ui.answer, answerHtml(t));
   const bad = t.state === "failed" || t.state === "stopped";
   t.ui.error.hidden = !bad;
   if (bad) {
@@ -168,7 +196,7 @@ function build(question) {
   const next = el("div", "follow"); next.hidden = true;
   next.append(el("span", "label", "Ask next"));
   node.append(activity, status, answer, error, foot, next);
-  return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null, html: "" } };
+  return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null } };
 }
 
 async function submit(question) {
