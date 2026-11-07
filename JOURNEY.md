@@ -2,6 +2,11 @@
 
 A timeline, not a spec. Each step names what we found, what changed from **A** to **B**, and
 what we turned down. All built steps happened on 7 Nov 2026; times are from `git log`.
+An interactive version, where you scrub through the build and tap each part of the system for
+its limits and what breaks first, is [docs/journey.html](docs/journey.html). Its source is
+`docs/journey.yaml`; numbers are read from the code and commits are checked against git, so a
+test fails if it drifts. This file is the prose.
+
 The design itself is in [README.md](README.md) and the data findings in [NOTES.md](NOTES.md).
 
 ## What kind of agent this is

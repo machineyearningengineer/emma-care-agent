@@ -1,0 +1,271 @@
+# The source of truth for docs/journey.html. Edit here, then: uv run python docs/build_journey.py
+# ${NAME} is replaced with the constant of that name from the code, so numbers can't drift.
+# Every commit listed must exist in git history, or the build (and a test) fails.
+title: Care data agent
+subtitle: How it was built, one step at a time, and what breaks first when it grows.
+
+nodes:
+  - id: page
+    col: Browser
+    label: Page
+    since: 6
+    what: One column of turns. Each turn is a state (starting, querying, writing, done, failed, stopped) and the page is drawn from it. Citations open the record; chips suggest the next question.
+    invariant: A turn's state is data. The DOM is derived from it, never the other way round.
+    limits: ["Questions up to ${QUESTION_CHARS} characters", "Sends the last ${HISTORY_MESSAGES} messages back"]
+    breaks: Nothing yet. The answer is redrawn each frame, which is fine at answer sizes.
+    scale: No change needed. It is static files.
+  - id: server
+    col: Server
+    label: FastAPI
+    since: 6
+    what: One streaming endpoint. Every request gets an id; every event and log line carries it.
+    invariant: At most ${MAX_CONCURRENT} live questions run at once; the next is told to retry, not queued.
+    limits: ["${MAX_CONCURRENT} live questions at once", "Logs leave out questions and SQL unless CARE_LOG_CONTENT=1"]
+    breaks: Each live question holds a worker thread for up to about a minute.
+    scale: An async client or a queue, and per-user quotas (which need identity).
+  - id: events
+    col: Server
+    label: Event protocol
+    since: 9
+    what: Every event the agent, a replay or the server emits, defined once and validated in tests.
+    invariant: query → result → delta → done → suggestions, with discard and error as the only exceptions.
+    breaks: Nothing. It was a docstring until the audit.
+    scale: Versioning, once a second client exists.
+  - id: records
+    col: Server
+    label: Record lookup
+    since: 8
+    what: A citation like (visit 293) is a primary key, so tapping it returns exactly that record.
+    invariant: Citations are ids only, in the exact form (visit 12) or (form 4).
+    breaks: Any id can be fetched. There is no auth or tenant scoping.
+    scale: Scope every lookup to the caller's organisation.
+  - id: replay
+    col: Server
+    label: Replay mode
+    since: 7
+    what: Recorded real answers for the five example questions, so the app runs with no key and no network.
+    invariant: Replay and live emit the same events, so the page can't tell them apart.
+    breaks: Only the example questions have recordings.
+    scale: Not needed in production.
+  - id: agent
+    col: Agent
+    label: Agent loop
+    since: 4
+    what: The model plans a query, the code runs it, the result goes back, repeat. One implementation; ask() just collects it.
+    invariant: Three bounds, and the first to trip makes the next turn the answer.
+    limits: ["${MAX_STEPS} tool turns", "${TOKEN_BUDGET} prompt tokens", "${DEADLINE_S} seconds"]
+    breaks: Recall on broad questions. The model reads a slice and answers confidently, and a missed person gives no error.
+    scale: Shortlist with SQL, then one small context per person in parallel, then rank.
+  - id: model
+    col: Agent
+    label: Model
+    since: 4
+    what: gpt-5.5 answers. A cheaper model only suggests follow-ups, outside the loop, and fails soft.
+    invariant: The prompt carries a version hash, logged and returned with every answer.
+    breaks: Quality drops as context grows. Each step re-sends the whole conversation, so tokens grow with steps.
+    scale: Smaller contexts (fan-out) and prompt caching, which is already measured.
+  - id: schema
+    col: Agent
+    label: Schema and glossary
+    since: 2
+    what: The model's picture of the database, derived from the live file and cached per file version. The glossary holds only meaning the data can't show.
+    invariant: Derived facts are computed, never typed. Hand-written text is only what the data cannot say.
+    limits: ["Samples ${SAMPLE_ROWS} rows per table"]
+    breaks: Sampling misses rare values and rare JSON paths on a big table.
+    scale: Stratified sampling, or a stored profile refreshed offline.
+  - id: tool
+    col: Data
+    label: run_sql
+    since: 1
+    what: The agent's only tool. One read-only SELECT with parameters, and errors go back as text so the model can repair its own SQL.
+    invariant: One tool, so safety lives in one place.
+    breaks: Model-written SQL can be valid but wrong. The trace makes it visible.
+    scale: A flatter read model means fewer wrong queries.
+  - id: db
+    col: Data
+    label: Guardrails
+    since: 1
+    what: SQLite itself refuses anything but bounded reads. The prompt is never the safety.
+    invariant: Opened mode=ro, query_only, an authorizer that allows only reads, one statement per call.
+    limits: ["${MAX_ROWS} rows, ${MAX_CELL_CHARS} characters per cell, ${MAX_RESULT_CHARS} per result", "${TIMEOUT_S} second deadline", "Values over ${MAX_VALUE_BYTES} bytes can't be built"]
+    breaks: LIKE and json_each are full scans, so a big source hits the deadline.
+    scale: Real indexes, and on Postgres a read-only role plus statement_timeout.
+  - id: readmodel
+    col: Data
+    label: Views and full-text index
+    since: 11
+    what: Three flat views (one row per note, comment or answer, person joined) and an FTS5 index, built per connection in the temp database.
+    invariant: The source file is never written, and the index can't be written to by the agent.
+    breaks: The index is rebuilt for every connection, about 6 ms at this size.
+    scale: Real views and a persistent index kept in sync by triggers.
+  - id: evals
+    col: Checks
+    label: Evals
+    since: 5
+    what: Eight golden questions with required facts, plus a scale check that adds many quiet people and confirms the real concerns still surface.
+    invariant: A prompt change is measured, not eyeballed.
+    breaks: I wrote both the answers and the checks, so my blind spots are in both. They check facts, not reasoning.
+    scale: Labelled data from someone who didn't write the agent.
+
+steps:
+  - id: 0
+    when: "16:05"
+    title: Look at the data first
+    commits: [fa4cba9]
+    nodes: []
+    A: answer from structured fields
+    B: answer from free text, and say what is absent
+    why: Every visit is Completed, 45 minutes, with no planned time. All the risk is in free text, and sometimes the text contradicts the status.
+    found: Iris's medication is marked Completed, but the comment says it wasn't given.
+    rejected: ["Counting statuses: they carry no signal."]
+    breaks: Nothing yet. This step is the reading.
+  - id: 1
+    when: "17:01"
+    title: Safety in the database, not the prompt
+    commits: [992490c]
+    nodes: [tool, db]
+    A: a prompt that asks for read-only
+    B: SQLite refuses everything but bounded reads
+    why: A prompt is a request. An authorizer is a guarantee.
+    rejected: ["A tool per report: that is the fixed-reports design the brief avoids.", "A regex filter on SQL."]
+    breaks: LIKE and json_each scan the whole table.
+  - id: 2
+    when: "17:02"
+    title: The schema is derived
+    commits: [d0e4922]
+    nodes: [schema]
+    A: a hand-written schema in the prompt
+    B: built per call from the live file
+    why: It can't go stale, and it showed the model that every status is Completed.
+    rejected: ["A describe_schema tool: a round trip on every question."]
+    breaks: Sampling misses rare values on a big table.
+  - id: 3
+    when: "17:02"
+    title: Results are bounded, and cuts are loud
+    commits: [b54eb8d, 69cf10c]
+    nodes: []
+    A: unbounded rows
+    B: row, cell and size caps, with a truncation flag and warning
+    why: 200 rows of long notes is about 25k tokens in one call.
+    found: "A review found three gaps: a 400 MB zeroblob, cut cells with no flag, a blob that crashed the tool."
+    rejected: ["A subprocess for hard native timeouts: a length limit covers the real risk."]
+    breaks: A cap means a slice. The model can read a slice and answer confidently.
+  - id: 4
+    when: "17:04"
+    title: The loop and its trace
+    commits: [03e9094]
+    nodes: [agent, model]
+    A: an answer with no visible reasoning
+    B: every query recorded, and a step limit
+    why: A reviewer can see why it answered as it did.
+    found: The first live run caught 3 of 5 people. It read a few people's notes and claimed it had checked everyone.
+    rejected: ["Letting the model run until it stops by itself."]
+    breaks: Recall on broad questions, and tokens that grow with every step.
+  - id: 5
+    when: "17:07"
+    title: Evals decide
+    commits: [fe594dd]
+    nodes: [evals]
+    A: judging by reading
+    B: eight golden questions with required facts
+    why: Prompt changes need measuring.
+    found: The first run failed 3 of 8, giving four general fixes. Later, mini scoped medication to 7 days and cleared Iris, so answers now state their date range.
+    rejected: ["Scoring with another model: it would hide the same blind spots."]
+    breaks: I wrote the answers and the checks. They confirm facts appear, not that the reasoning is right.
+  - id: 6
+    when: "17:08"
+    title: A page, then streaming
+    commits: [b62d2d5, ebaf43f, 0523fbc]
+    nodes: [page, server]
+    A: a 20 to 60 second blank wait
+    B: queries and text appear as they happen
+    why: ask_stream is the single implementation of the loop; every caller uses the same code.
+    rejected: ["A front-end framework.", "A markdown library: the renderer escapes first instead."]
+    breaks: Each live question holds a thread for up to a minute.
+  - id: 7
+    when: "17:26"
+    title: Observability and cost
+    commits: [9121603, d042f0d, 34787dc]
+    nodes: [replay]
+    A: no ids, no cost view
+    B: request ids, JSON logs, token counts, a prompt-token budget, replay mode
+    why: A reported problem has to be findable, and cost has to be capped whatever the model wants.
+    found: The broadest question used 122k prompt tokens in total, because each step re-sends the conversation.
+    rejected: ["Retrying silently: failures are shown, not hidden."]
+    breaks: Total tokens say little about what the model's context actually held.
+  - id: 8
+    when: "17:44"
+    title: Trust in the interface
+    commits: [34787dc, c0e1902, 0d705a9, b8d6183]
+    nodes: [records]
+    A: a text answer
+    B: tappable citations, an unknowns box, follow-up chips, Emma's look
+    why: A care manager needs to check where a claim came from.
+    found: A date inside a citation became buttons, and a long suggestion clipped the input.
+    rejected: ["Side chats and pasted objects: scope creep.", "Autofill of a suggested question: no Tab key on a phone, so chips."]
+    breaks: Any record id can be fetched with no auth.
+  - id: 9
+    when: "18:09"
+    title: Untangle audit
+    commits: [5344a6b, cdbe9ea]
+    nodes: [events]
+    A: hidden links, and a protocol that lived in a docstring
+    B: one config, typed events, records out of the server, three bounds
+    why: Pieces that change together should be together, and every convention should be checkable.
+    found: ".env was only loaded because the agent module happened to import first, and the mode was read three times per request."
+    rejected: ["Deleting nothing: /api/ask duplicated the stream endpoint, so it went."]
+    breaks: Nothing new. It removed ways to break.
+  - id: 10
+    when: "18:30"
+    title: See it, and guard the edges
+    commits: [9f2d8b2]
+    nodes: []
+    A: total tokens, names in logs, unlimited questions
+    B: peak context logged, content-free logs, a concurrency cap
+    why: Totals re-count the conversation each step; the peak is what the model actually held.
+    found: On a live run the peak was 2.6k of 7.2k total tokens.
+    rejected: ["A queue and per-user quotas: they need identity this app doesn't have."]
+    breaks: A cap protects cost but isn't a quota per person.
+  - id: 11
+    when: "19:00"
+    title: A flat read model, search, and a scale check
+    commits: [b24568f]
+    nodes: [readmodel]
+    A: nested json_each queries
+    B: three views and an FTS5 index, through the same one tool
+    why: Fewer ambiguous-column retries and a cheap way to find where words occur.
+    found: With 40 times as many quiet people (about 205 people) the broad question still found all five real concerns in 13 s. The clones repeat their text, so this is easier than production.
+    rejected: ["A separate search tool: it would change the event protocol for no gain."]
+    breaks: The per-connection index is rebuilt each time, which is fine here and not at scale.
+
+next:
+  - id: n1
+    title: Measure recall with varied text
+    trigger: Now. It is the one thing we can't see.
+    A: five of five on repeated text
+    B: the same check with varied text and a real-sized source
+    touches: [evals, agent]
+  - id: n2
+    title: Store the read model
+    trigger: When the source is big enough that per-connection builds hurt.
+    A: temp views and index per connection
+    B: real views, a persistent FTS index kept in sync by triggers, and real indexes
+    touches: [readmodel, db]
+  - id: n3
+    title: One page per person
+    trigger: When the scale check stops finding everyone, or broad questions get slow.
+    A: the agent re-reads raw notes every time
+    B: a dated, cited page per person, rebuilt offline, used as a lead and verified against the records
+    touches: [agent, schema]
+  - id: n4
+    title: Fan out per person
+    trigger: When one context is too long to read well.
+    A: one long sequential loop
+    B: shortlist with SQL, one small context per person in parallel, then rank
+    touches: [agent, server]
+  - id: n5
+    title: Embeddings, if measured
+    trigger: Only when a measured miss is about phrasing.
+    A: keywords
+    B: embeddings combined with FTS5 to propose candidates
+    touches: [readmodel]

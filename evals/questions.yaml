@@ -8,6 +8,8 @@
     - Raymond
     - Iris
     - Cynthia
+    - (breath|sputum|chest)  # Doris: the decline, not just her name
+    - (16 Nov|2025-11-16|November 16)  # "now" is the end of the data, so the window it states ends here
 
 - id: missed_late
   question: Were any visits missed or late in the last two weeks?

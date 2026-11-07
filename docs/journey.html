@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Care data agent: journey</title>
+<style>
+:root { color-scheme: light dark;
+  --bg: light-dark(#fbfbfe, #12132b); --surface: light-dark(#fff, #1a1c3a); --soft: light-dark(#f3f2fb, #23254a);
+  --line: light-dark(#e1e0ef, #30336a); --text: light-dark(#1f2143, #f1f1fa); --muted: light-dark(#66688a, #a5a7c8);
+  --accent: light-dark(#6e57dd, #a782fc); --wash: light-dark(#efecfc, #2c2a5e); --warn: light-dark(#b4561f, #f2a46b);
+  --lime: light-dark(#6f7d00, #e0f30a); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 24px; margin: 0; letter-spacing: -.01em; } .sub { color: var(--muted); margin: 4px 0 18px; max-width: 60ch; }
+.bar { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px);
+  display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.bar input { flex: 1; accent-color: var(--accent); min-width: 0; }
+.step-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; }
+.bar b { white-space: nowrap; font-size: 13px; }
+.grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .grid { grid-template-columns: 300px 1fr; } .tl { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 96px); overflow: auto; } }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.tl button { display: block; width: 100%; text-align: left; border: 1px solid transparent; border-radius: 10px; background: none; padding: 8px 10px; margin-bottom: 2px; }
+.tl button:hover { background: var(--soft); } .tl .on { background: var(--wash); border-color: var(--accent); }
+.tl .t { font-size: 11px; color: var(--muted); } .tl .n { font-weight: 600; font-size: 14px; }
+.tl .future { opacity: .45; } .tl .next-card { border: 1px dashed var(--line); } .tl .next-card.on { border-color: var(--accent); }
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.col h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.node { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); transition: .2s; }
+.node small { display: block; color: var(--muted); font-size: 12px; }
+.node.ghost { opacity: .35; border-style: dashed; } .node.new { border-color: var(--accent); box-shadow: 0 0 0 3px var(--wash); }
+.node.sel { background: var(--wash); border-color: var(--accent); } .node.touch { border: 2px dashed var(--lime); }
+.detail { margin-top: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.detail h2 { margin: 0 0 4px; font-size: 19px; } .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.ab { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 10px 0; }
+.ab div { flex: 1 1 200px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.ab div.b { border-color: var(--accent); background: var(--wash); } .ab span { align-self: center; color: var(--muted); }
+.ab small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.row { margin: 12px 0 0; } .row b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 2px; }
+.row.break b { color: var(--warn); } .row ul { margin: 2px 0 0; padding-left: 18px; }
+code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--soft); padding: 1px 6px; border-radius: 6px; margin-right: 4px; }
+.link { color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; }
+.hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title"></h1><p class="sub" id="sub"></p>
+  <div class="bar">
+    <button class="step-btn" id="prev" aria-label="Previous step">‹</button>
+    <input type="range" id="range" min="0" value="0" aria-label="Step in the build">
+    <button class="step-btn" id="nextb" aria-label="Next step">›</button>
+    <b id="now"></b>
+  </div>
+  <div class="grid">
+    <nav class="tl" id="tl" aria-label="Timeline"></nav>
+    <main>
+      <p class="label">The system at this step · tap a part</p>
+      <div class="map" id="map"></div>
+      <section class="detail" id="detail" aria-live="polite"></section>
+      <p class="hint">Arrow keys move through the steps. Dashed green parts are what a "next" step would change.</p>
+    </main>
+  </div>
+</div>
+<script>
+const DATA = {"title": "Care data agent", "subtitle": "How it was built, one step at a time, and what breaks first when it grows.", "nodes": [{"id": "page", "col": "Browser", "label": "Page", "since": 6, "what": "One column of turns. Each turn is a state (starting, querying, writing, done, failed, stopped) and the page is drawn from it. Citations open the record; chips suggest the next question.", "invariant": "A turn's state is data. The DOM is derived from it, never the other way round.", "limits": ["Questions up to 2,000 characters", "Sends the last 6 messages back"], "breaks": "Nothing yet. The answer is redrawn each frame, which is fine at answer sizes.", "scale": "No change needed. It is static files."}, {"id": "server", "col": "Server", "label": "FastAPI", "since": 6, "what": "One streaming endpoint. Every request gets an id; every event and log line carries it.", "invariant": "At most 8 live questions run at once; the next is told to retry, not queued.", "limits": ["8 live questions at once", "Logs leave out questions and SQL unless CARE_LOG_CONTENT=1"], "breaks": "Each live question holds a worker thread for up to about a minute.", "scale": "An async client or a queue, and per-user quotas (which need identity)."}, {"id": "events", "col": "Server", "label": "Event protocol", "since": 9, "what": "Every event the agent, a replay or the server emits, defined once and validated in tests.", "invariant": "query → result → delta → done → suggestions, with discard and error as the only exceptions.", "breaks": "Nothing. It was a docstring until the audit.", "scale": "Versioning, once a second client exists."}, {"id": "records", "col": "Server", "label": "Record lookup", "since": 8, "what": "A citation like (visit 293) is a primary key, so tapping it returns exactly that record.", "invariant": "Citations are ids only, in the exact form (visit 12) or (form 4).", "breaks": "Any id can be fetched. There is no auth or tenant scoping.", "scale": "Scope every lookup to the caller's organisation."}, {"id": "replay", "col": "Server", "label": "Replay mode", "since": 7, "what": "Recorded real answers for the five example questions, so the app runs with no key and no network.", "invariant": "Replay and live emit the same events, so the page can't tell them apart.", "breaks": "Only the example questions have recordings.", "scale": "Not needed in production."}, {"id": "agent", "col": "Agent", "label": "Agent loop", "since": 4, "what": "The model plans a query, the code runs it, the result goes back, repeat. One implementation; ask() just collects it.", "invariant": "Three bounds, and the first to trip makes the next turn the answer.", "limits": ["8 tool turns", "150,000 prompt tokens", "120 seconds"], "breaks": "Recall on broad questions. The model reads a slice and answers confidently, and a missed person gives no error.", "scale": "Shortlist with SQL, then one small context per person in parallel, then rank."}, {"id": "model", "col": "Agent", "label": "Model", "since": 4, "what": "gpt-5.5 answers. A cheaper model only suggests follow-ups, outside the loop, and fails soft.", "invariant": "The prompt carries a version hash, logged and returned with every answer.", "breaks": "Quality drops as context grows. Each step re-sends the whole conversation, so tokens grow with steps.", "scale": "Smaller contexts (fan-out) and prompt caching, which is already measured."}, {"id": "schema", "col": "Agent", "label": "Schema and glossary", "since": 2, "what": "The model's picture of the database, derived from the live file and cached per file version. The glossary holds only meaning the data can't show.", "invariant": "Derived facts are computed, never typed. Hand-written text is only what the data cannot say.", "limits": ["Samples 200 rows per table"], "breaks": "Sampling misses rare values and rare JSON paths on a big table.", "scale": "Stratified sampling, or a stored profile refreshed offline."}, {"id": "tool", "col": "Data", "label": "run_sql", "since": 1, "what": "The agent's only tool. One read-only SELECT with parameters, and errors go back as text so the model can repair its own SQL.", "invariant": "One tool, so safety lives in one place.", "breaks": "Model-written SQL can be valid but wrong. The trace makes it visible.", "scale": "A flatter read model means fewer wrong queries."}, {"id": "db", "col": "Data", "label": "Guardrails", "since": 1, "what": "SQLite itself refuses anything but bounded reads. The prompt is never the safety.", "invariant": "Opened mode=ro, query_only, an authorizer that allows only reads, one statement per call.", "limits": ["200 rows, 500 characters per cell, 60,000 per result", "2.0 second deadline", "Values over 1,000,000 bytes can't be built"], "breaks": "LIKE and json_each are full scans, so a big source hits the deadline.", "scale": "Real indexes, and on Postgres a read-only role plus statement_timeout."}, {"id": "readmodel", "col": "Data", "label": "Views and full-text index", "since": 11, "what": "Three flat views (one row per note, comment or answer, person joined) and an FTS5 index, built per connection in the temp database.", "invariant": "The source file is never written, and the index can't be written to by the agent.", "breaks": "The index is rebuilt for every connection, about 6 ms at this size.", "scale": "Real views and a persistent index kept in sync by triggers."}, {"id": "evals", "col": "Checks", "label": "Evals", "since": 5, "what": "Eight golden questions with required facts, plus a scale check that adds many quiet people and confirms the real concerns still surface.", "invariant": "A prompt change is measured, not eyeballed.", "breaks": "I wrote both the answers and the checks, so my blind spots are in both. They check facts, not reasoning.", "scale": "Labelled data from someone who didn't write the agent."}], "steps": [{"id": 0, "when": "16:05", "title": "Look at the data first", "commits": ["fa4cba9"], "nodes": [], "A": "answer from structured fields", "B": "answer from free text, and say what is absent", "why": "Every visit is Completed, 45 minutes, with no planned time. All the risk is in free text, and sometimes the text contradicts the status.", "found": "Iris's medication is marked Completed, but the comment says it wasn't given.", "rejected": ["Counting statuses: they carry no signal."], "breaks": "Nothing yet. This step is the reading."}, {"id": 1, "when": "17:01", "title": "Safety in the database, not the prompt", "commits": ["992490c"], "nodes": ["tool", "db"], "A": "a prompt that asks for read-only", "B": "SQLite refuses everything but bounded reads", "why": "A prompt is a request. An authorizer is a guarantee.", "rejected": ["A tool per report: that is the fixed-reports design the brief avoids.", "A regex filter on SQL."], "breaks": "LIKE and json_each scan the whole table."}, {"id": 2, "when": "17:02", "title": "The schema is derived", "commits": ["d0e4922"], "nodes": ["schema"], "A": "a hand-written schema in the prompt", "B": "built per call from the live file", "why": "It can't go stale, and it showed the model that every status is Completed.", "rejected": ["A describe_schema tool: a round trip on every question."], "breaks": "Sampling misses rare values on a big table."}, {"id": 3, "when": "17:02", "title": "Results are bounded, and cuts are loud", "commits": ["b54eb8d", "69cf10c"], "nodes": [], "A": "unbounded rows", "B": "row, cell and size caps, with a truncation flag and warning", "why": "200 rows of long notes is about 25k tokens in one call.", "found": "A review found three gaps: a 400 MB zeroblob, cut cells with no flag, a blob that crashed the tool.", "rejected": ["A subprocess for hard native timeouts: a length limit covers the real risk."], "breaks": "A cap means a slice. The model can read a slice and answer confidently."}, {"id": 4, "when": "17:04", "title": "The loop and its trace", "commits": ["03e9094"], "nodes": ["agent", "model"], "A": "an answer with no visible reasoning", "B": "every query recorded, and a step limit", "why": "A reviewer can see why it answered as it did.", "found": "The first live run caught 3 of 5 people. It read a few people's notes and claimed it had checked everyone.", "rejected": ["Letting the model run until it stops by itself."], "breaks": "Recall on broad questions, and tokens that grow with every step."}, {"id": 5, "when": "17:07", "title": "Evals decide", "commits": ["fe594dd"], "nodes": ["evals"], "A": "judging by reading", "B": "eight golden questions with required facts", "why": "Prompt changes need measuring.", "found": "The first run failed 3 of 8, giving four general fixes. Later, mini scoped medication to 7 days and cleared Iris, so answers now state their date range.", "rejected": ["Scoring with another model: it would hide the same blind spots."], "breaks": "I wrote the answers and the checks. They confirm facts appear, not that the reasoning is right."}, {"id": 6, "when": "17:08", "title": "A page, then streaming", "commits": ["b62d2d5", "ebaf43f", "0523fbc"], "nodes": ["page", "server"], "A": "a 20 to 60 second blank wait", "B": "queries and text appear as they happen", "why": "ask_stream is the single implementation of the loop; every caller uses the same code.", "rejected": ["A front-end framework.", "A markdown library: the renderer escapes first instead."], "breaks": "Each live question holds a thread for up to a minute."}, {"id": 7, "when": "17:26", "title": "Observability and cost", "commits": [9121603, "d042f0d", "34787dc"], "nodes": ["replay"], "A": "no ids, no cost view", "B": "request ids, JSON logs, token counts, a prompt-token budget, replay mode", "why": "A reported problem has to be findable, and cost has to be capped whatever the model wants.", "found": "The broadest question used 122k prompt tokens in total, because each step re-sends the conversation.", "rejected": ["Retrying silently: failures are shown, not hidden."], "breaks": "Total tokens say little about what the model's context actually held."}, {"id": 8, "when": "17:44", "title": "Trust in the interface", "commits": ["34787dc", "c0e1902", "0d705a9", "b8d6183"], "nodes": ["records"], "A": "a text answer", "B": "tappable citations, an unknowns box, follow-up chips, Emma's look", "why": "A care manager needs to check where a claim came from.", "found": "A date inside a citation became buttons, and a long suggestion clipped the input.", "rejected": ["Side chats and pasted objects: scope creep.", "Autofill of a suggested question: no Tab key on a phone, so chips."], "breaks": "Any record id can be fetched with no auth."}, {"id": 9, "when": "18:09", "title": "Untangle audit", "commits": ["5344a6b", "cdbe9ea"], "nodes": ["events"], "A": "hidden links, and a protocol that lived in a docstring", "B": "one config, typed events, records out of the server, three bounds", "why": "Pieces that change together should be together, and every convention should be checkable.", "found": ".env was only loaded because the agent module happened to import first, and the mode was read three times per request.", "rejected": ["Deleting nothing: /api/ask duplicated the stream endpoint, so it went."], "breaks": "Nothing new. It removed ways to break."}, {"id": 10, "when": "18:30", "title": "See it, and guard the edges", "commits": ["9f2d8b2"], "nodes": [], "A": "total tokens, names in logs, unlimited questions", "B": "peak context logged, content-free logs, a concurrency cap", "why": "Totals re-count the conversation each step; the peak is what the model actually held.", "found": "On a live run the peak was 2.6k of 7.2k total tokens.", "rejected": ["A queue and per-user quotas: they need identity this app doesn't have."], "breaks": "A cap protects cost but isn't a quota per person."}, {"id": 11, "when": "19:00", "title": "A flat read model, search, and a scale check", "commits": ["b24568f"], "nodes": ["readmodel"], "A": "nested json_each queries", "B": "three views and an FTS5 index, through the same one tool", "why": "Fewer ambiguous-column retries and a cheap way to find where words occur.", "found": "With 40 times as many quiet people (about 205 people) the broad question still found all five real concerns in 13 s. The clones repeat their text, so this is easier than production.", "rejected": ["A separate search tool: it would change the event protocol for no gain."], "breaks": "The per-connection index is rebuilt each time, which is fine here and not at scale."}], "next": [{"id": "n1", "title": "Measure recall with varied text", "trigger": "Now. It is the one thing we can't see.", "A": "five of five on repeated text", "B": "the same check with varied text and a real-sized source", "touches": ["evals", "agent"]}, {"id": "n2", "title": "Store the read model", "trigger": "When the source is big enough that per-connection builds hurt.", "A": "temp views and index per connection", "B": "real views, a persistent FTS index kept in sync by triggers, and real indexes", "touches": ["readmodel", "db"]}, {"id": "n3", "title": "One page per person", "trigger": "When the scale check stops finding everyone, or broad questions get slow.", "A": "the agent re-reads raw notes every time", "B": "a dated, cited page per person, rebuilt offline, used as a lead and verified against the records", "touches": ["agent", "schema"]}, {"id": "n4", "title": "Fan out per person", "trigger": "When one context is too long to read well.", "A": "one long sequential loop", "B": "shortlist with SQL, one small context per person in parallel, then rank", "touches": ["agent", "server"]}, {"id": "n5", "title": "Embeddings, if measured", "trigger": "Only when a measured miss is about phrasing.", "A": "keywords", "B": "embeddings combined with FTS5 to propose candidates", "touches": ["readmodel"]}]};
+const S = DATA.steps, N = DATA.nodes, NEXT = DATA.next;
+const st = { k: S.length - 1, node: null, next: null };
+const $ = (id) => document.getElementById(id);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const row = (label, body, cls) => { const r = h("div", "row " + (cls || "")); r.append(h("b", null, label)); r.append(typeof body === "string" ? document.createTextNode(body) : body); return r; };
+const list = (items) => { const u = h("ul"); items.forEach((t) => u.append(h("li", null, t))); return u; };
+const ab = (a, b) => { const d = h("div", "ab"); const x = h("div"); x.append(h("small", null, "Before"), document.createTextNode(a));
+  const y = h("div", "b"); y.append(h("small", null, "After"), document.createTextNode(b)); d.append(x, h("span", null, "→"), y); return d; };
+
+function pick(k) { st.k = Math.max(0, Math.min(S.length - 1, k)); st.node = null; st.next = null; draw(); }
+function drawMap() {
+  const touch = new Set(st.next != null ? NEXT[st.next].touches : []);
+  const cols = [...new Set(N.map((n) => n.col))];
+  $("map").replaceChildren(...cols.map((c) => {
+    const col = h("div", "col"); col.append(h("h4", null, c));
+    N.filter((n) => n.col === c).forEach((n) => {
+      const b = h("button", "node"); b.type = "button";
+      b.append(h("span", null, n.label), h("small", null, n.since <= st.k ? "step " + n.since : "built in step " + n.since));
+      if (n.since > st.k) b.classList.add("ghost");
+      if (n.since === st.k) b.classList.add("new");
+      if (st.node === n.id) b.classList.add("sel");
+      if (touch.has(n.id)) b.classList.add("touch");
+      b.addEventListener("click", () => { st.node = n.id; st.next = null; draw(); });
+      col.append(b);
+    });
+    return col;
+  }));
+}
+function drawDetail() {
+  const d = $("detail"); d.replaceChildren();
+  if (st.node) {
+    const n = N.find((x) => x.id === st.node);
+    d.append(h("h2", null, n.label), h("div", "meta", n.since > st.k ? "Not built yet at this step" : "Built in step " + n.since));
+    d.append(row("What it does", n.what), row("Invariant", n.invariant));
+    if (n.limits) d.append(row("Limits (read from the code)", list(n.limits)));
+    d.append(row("Breaks first", n.breaks, "break"), row("At scale", n.scale));
+    const j = h("button", "link", "Jump to step " + n.since); j.addEventListener("click", () => pick(n.since)); d.append(row("", j));
+  } else if (st.next != null) {
+    const x = NEXT[st.next];
+    d.append(h("h2", null, x.title), h("div", "meta", "Not built · " + x.trigger));
+    d.append(ab(x.A, x.B), row("Touches", x.touches.map((t) => N.find((n) => n.id === t).label).join(", ")));
+  } else {
+    const s = S[st.k];
+    d.append(h("h2", null, s.title), h("div", "meta", "Step " + s.id + " · " + s.when + " · 7 Nov"));
+    d.append(ab(s.A, s.B), row("Why", s.why));
+    if (s.found) d.append(row("What we found", s.found));
+    if (s.rejected?.length) d.append(row("Turned down", list(s.rejected)));
+    d.append(row("What breaks at this point", s.breaks, "break"));
+    if (s.commits?.length) { const c = h("div"); s.commits.forEach((x) => c.append(h("span", "sha", x))); d.append(row("Commits", c)); }
+  }
+}
+function drawTimeline() {
+  const t = $("tl"); t.replaceChildren(h("p", "label", "Built"));
+  S.forEach((s, i) => {
+    const b = h("button"); b.type = "button"; b.append(h("div", "t", s.when), h("div", "n", s.id + " · " + s.title));
+    if (i === st.k && st.next == null && st.node == null) b.classList.add("on");
+    if (i > st.k) b.classList.add("future");
+    b.addEventListener("click", () => pick(i)); t.append(b);
+  });
+  t.append(h("p", "label", "Next · not built"));
+  NEXT.forEach((x, i) => {
+    const b = h("button", "next-card"); b.type = "button"; b.append(h("div", "n", x.title), h("div", "t", x.trigger));
+    if (st.next === i) b.classList.add("on");
+    b.addEventListener("click", () => { st.next = i; st.node = null; st.k = S.length - 1; draw(); }); t.append(b);
+  });
+}
+function draw() {
+  $("range").value = st.k; $("now").textContent = "Step " + S[st.k].id + " of " + (S.length - 1);
+  drawMap(); drawDetail(); drawTimeline();
+}
+$("title").textContent = DATA.title; $("sub").textContent = DATA.subtitle; $("range").max = S.length - 1;
+$("range").addEventListener("input", (e) => pick(+e.target.value));
+$("prev").addEventListener("click", () => pick(st.k - 1)); $("nextb").addEventListener("click", () => pick(st.k + 1));
+addEventListener("keydown", (e) => { if (e.key === "ArrowLeft") pick(st.k - 1); if (e.key === "ArrowRight") pick(st.k + 1); });
+draw();
+</script>
+</body>
+</html>

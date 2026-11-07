@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Care data agent: journey</title>
+<style>
+:root { color-scheme: light dark;
+  --bg: light-dark(#fbfbfe, #12132b); --surface: light-dark(#fff, #1a1c3a); --soft: light-dark(#f3f2fb, #23254a);
+  --line: light-dark(#e1e0ef, #30336a); --text: light-dark(#1f2143, #f1f1fa); --muted: light-dark(#66688a, #a5a7c8);
+  --accent: light-dark(#6e57dd, #a782fc); --wash: light-dark(#efecfc, #2c2a5e); --warn: light-dark(#b4561f, #f2a46b);
+  --lime: light-dark(#6f7d00, #e0f30a); }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 24px; margin: 0; letter-spacing: -.01em; } .sub { color: var(--muted); margin: 4px 0 18px; max-width: 60ch; }
+.bar { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(10px);
+  display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.bar input { flex: 1; accent-color: var(--accent); min-width: 0; }
+.step-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 34px; }
+.bar b { white-space: nowrap; font-size: 13px; }
+.grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .grid { grid-template-columns: 300px 1fr; } .tl { position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 96px); overflow: auto; } }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.tl button { display: block; width: 100%; text-align: left; border: 1px solid transparent; border-radius: 10px; background: none; padding: 8px 10px; margin-bottom: 2px; }
+.tl button:hover { background: var(--soft); } .tl .on { background: var(--wash); border-color: var(--accent); }
+.tl .t { font-size: 11px; color: var(--muted); } .tl .n { font-weight: 600; font-size: 14px; }
+.tl .future { opacity: .45; } .tl .next-card { border: 1px dashed var(--line); } .tl .next-card.on { border-color: var(--accent); }
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.col h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.node { display: block; width: 100%; text-align: left; margin-bottom: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); transition: .2s; }
+.node small { display: block; color: var(--muted); font-size: 12px; }
+.node.ghost { opacity: .35; border-style: dashed; } .node.new { border-color: var(--accent); box-shadow: 0 0 0 3px var(--wash); }
+.node.sel { background: var(--wash); border-color: var(--accent); } .node.touch { border: 2px dashed var(--lime); }
+.detail { margin-top: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.detail h2 { margin: 0 0 4px; font-size: 19px; } .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+.ab { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; margin: 10px 0; }
+.ab div { flex: 1 1 200px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.ab div.b { border-color: var(--accent); background: var(--wash); } .ab span { align-self: center; color: var(--muted); }
+.ab small { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.row { margin: 12px 0 0; } .row b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 2px; }
+.row.break b { color: var(--warn); } .row ul { margin: 2px 0 0; padding-left: 18px; }
+code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--soft); padding: 1px 6px; border-radius: 6px; margin-right: 4px; }
+.link { color: var(--accent); background: none; border: 0; padding: 0; text-decoration: underline; }
+.hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="title"></h1><p class="sub" id="sub"></p>
+  <div class="bar">
+    <button class="step-btn" id="prev" aria-label="Previous step">‹</button>
+    <input type="range" id="range" min="0" value="0" aria-label="Step in the build">
+    <button class="step-btn" id="nextb" aria-label="Next step">›</button>
+    <b id="now"></b>
+  </div>
+  <div class="grid">
+    <nav class="tl" id="tl" aria-label="Timeline"></nav>
+    <main>
+      <p class="label">The system at this step · tap a part</p>
+      <div class="map" id="map"></div>
+      <section class="detail" id="detail" aria-live="polite"></section>
+      <p class="hint">Arrow keys move through the steps. Dashed green parts are what a "next" step would change.</p>
+    </main>
+  </div>
+</div>
+<script>
+const DATA = /*DATA*/null;
+const S = DATA.steps, N = DATA.nodes, NEXT = DATA.next;
+const st = { k: S.length - 1, node: null, next: null };
+const $ = (id) => document.getElementById(id);
+const h = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const row = (label, body, cls) => { const r = h("div", "row " + (cls || "")); r.append(h("b", null, label)); r.append(typeof body === "string" ? document.createTextNode(body) : body); return r; };
+const list = (items) => { const u = h("ul"); items.forEach((t) => u.append(h("li", null, t))); return u; };
+const ab = (a, b) => { const d = h("div", "ab"); const x = h("div"); x.append(h("small", null, "Before"), document.createTextNode(a));
+  const y = h("div", "b"); y.append(h("small", null, "After"), document.createTextNode(b)); d.append(x, h("span", null, "→"), y); return d; };
+
+function pick(k) { st.k = Math.max(0, Math.min(S.length - 1, k)); st.node = null; st.next = null; draw(); }
+function drawMap() {
+  const touch = new Set(st.next != null ? NEXT[st.next].touches : []);
+  const cols = [...new Set(N.map((n) => n.col))];
+  $("map").replaceChildren(...cols.map((c) => {
+    const col = h("div", "col"); col.append(h("h4", null, c));
+    N.filter((n) => n.col === c).forEach((n) => {
+      const b = h("button", "node"); b.type = "button";
+      b.append(h("span", null, n.label), h("small", null, n.since <= st.k ? "step " + n.since : "built in step " + n.since));
+      if (n.since > st.k) b.classList.add("ghost");
+      if (n.since === st.k) b.classList.add("new");
+      if (st.node === n.id) b.classList.add("sel");
+      if (touch.has(n.id)) b.classList.add("touch");
+      b.addEventListener("click", () => { st.node = n.id; st.next = null; draw(); });
+      col.append(b);
+    });
+    return col;
+  }));
+}
+function drawDetail() {
+  const d = $("detail"); d.replaceChildren();
+  if (st.node) {
+    const n = N.find((x) => x.id === st.node);
+    d.append(h("h2", null, n.label), h("div", "meta", n.since > st.k ? "Not built yet at this step" : "Built in step " + n.since));
+    d.append(row("What it does", n.what), row("Invariant", n.invariant));
+    if (n.limits) d.append(row("Limits (read from the code)", list(n.limits)));
+    d.append(row("Breaks first", n.breaks, "break"), row("At scale", n.scale));
+    const j = h("button", "link", "Jump to step " + n.since); j.addEventListener("click", () => pick(n.since)); d.append(row("", j));
+  } else if (st.next != null) {
+    const x = NEXT[st.next];
+    d.append(h("h2", null, x.title), h("div", "meta", "Not built · " + x.trigger));
+    d.append(ab(x.A, x.B), row("Touches", x.touches.map((t) => N.find((n) => n.id === t).label).join(", ")));
+  } else {
+    const s = S[st.k];
+    d.append(h("h2", null, s.title), h("div", "meta", "Step " + s.id + " · " + s.when + " · 7 Nov"));
+    d.append(ab(s.A, s.B), row("Why", s.why));
+    if (s.found) d.append(row("What we found", s.found));
+    if (s.rejected?.length) d.append(row("Turned down", list(s.rejected)));
+    d.append(row("What breaks at this point", s.breaks, "break"));
+    if (s.commits?.length) { const c = h("div"); s.commits.forEach((x) => c.append(h("span", "sha", x))); d.append(row("Commits", c)); }
+  }
+}
+function drawTimeline() {
+  const t = $("tl"); t.replaceChildren(h("p", "label", "Built"));
+  S.forEach((s, i) => {
+    const b = h("button"); b.type = "button"; b.append(h("div", "t", s.when), h("div", "n", s.id + " · " + s.title));
+    if (i === st.k && st.next == null && st.node == null) b.classList.add("on");
+    if (i > st.k) b.classList.add("future");
+    b.addEventListener("click", () => pick(i)); t.append(b);
+  });
+  t.append(h("p", "label", "Next · not built"));
+  NEXT.forEach((x, i) => {
+    const b = h("button", "next-card"); b.type = "button"; b.append(h("div", "n", x.title), h("div", "t", x.trigger));
+    if (st.next === i) b.classList.add("on");
+    b.addEventListener("click", () => { st.next = i; st.node = null; st.k = S.length - 1; draw(); }); t.append(b);
+  });
+}
+function draw() {
+  $("range").value = st.k; $("now").textContent = "Step " + S[st.k].id + " of " + (S.length - 1);
+  drawMap(); drawDetail(); drawTimeline();
+}
+$("title").textContent = DATA.title; $("sub").textContent = DATA.subtitle; $("range").max = S.length - 1;
+$("range").addEventListener("input", (e) => pick(+e.target.value));
+$("prev").addEventListener("click", () => pick(st.k - 1)); $("nextb").addEventListener("click", () => pick(st.k + 1));
+addEventListener("keydown", (e) => { if (e.key === "ArrowLeft") pick(st.k - 1); if (e.key === "ArrowRight") pick(st.k + 1); });
+draw();
+</script>
+</body>
+</html>
