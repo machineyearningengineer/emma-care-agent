@@ -26,6 +26,20 @@ no messages. That makes it an analyst more than an assistant, on purpose. It is 
 multi-agent and has no planner or self-check. An agent SDK would add tracing, not
 "agent-ness", so the 100-line loop stays hand-rolled.
 
+## Five ways to think about it
+
+The model is one layer of five, and each fails differently. The page version at [docs/journey.html](docs/journey.html) has each one expanded; the same text is in [docs/architecture.md](docs/architecture.md).
+
+| Layer | Question | Fails like | Checked by |
+|---|---|---|---|
+| The problem | What counts as a right answer? | A fluent answer to the wrong question | Golden questions, including one that must refuse |
+| Judgement | Does it reason well from what it reads? | Wrong scope, clearing someone unread | Repeats and rephrased questions |
+| Capability | What can it see and do? | A cut-off result that looks complete | Guardrail tests, scale check |
+| Control | What stops it going wrong or costing too much? | A runaway loop, an injected note | A test per limit, step timings |
+| Trust | Can a person rely on it, and can we tell when it is wrong? | Right but unprovable | Contract tests, evals, a live walk |
+
+Contracts (typed events, the citation grammar, one config) hold the layers together. A feedback loop (a failure becomes a rule and a permanent test) improves the first two without fine-tuning. The layers are not equally covered: the problem layer is thinnest, because the golden questions come from one person and no real manager has shaped them.
+
 ## What the data is testing
 
 The data has twelve traps, each found by reading it (details in [NOTES.md](NOTES.md)). Whether

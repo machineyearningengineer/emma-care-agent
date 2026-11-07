@@ -99,6 +99,10 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
 .link + .link::before { content: ""; }
 
 /* lists */
+.think { display: grid; gap: 8px; margin: 8px 0 12px; }
+.think details { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 14px; }
+.think summary { cursor: pointer; font-weight: 600; } .think summary span { display: block; font-weight: 400; color: var(--muted); font-size: 13px; }
+.think p { margin: 8px 0 0; } .think ul { margin: 4px 0 0; padding-left: 18px; } .think .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 10px; }
 .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); padding: 0; margin: 8px 0 0; list-style: none; }
 .card { display: block; width: 100%; height: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 8px 12px; }
 .card:hover { background: var(--soft); }
@@ -151,7 +155,12 @@ code, .sha { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; backgrou
     <div class="grp"><button class="btn" id="copy">Copy as Markdown</button><span id="status" class="note" style="margin:0" role="status"></span></div>
   </div>
 
-  <h2 style="margin-top:0">How one question flows</h2>
+  <h2 style="margin-top:0">Five ways to think about it</h2>
+  <p class="note">The model is one layer of five. Open each to see what it is, what we did, how it fails, how we check it, and what is still missing.</p>
+  <div class="think" id="think"></div>
+  <ul class="note" id="threads"></ul>
+
+  <h2>How one question flows</h2>
   <p class="note">Tap a part to see what it guarantees and what it costs. Questions travel down the layers and answers come back up. Press Story to follow one question through.</p>
   <div class="main">
     <div class="diagram" id="diagram"></div>
@@ -411,6 +420,14 @@ async function copyMd() {
 
 /* Static parts and events. */
 $("title").textContent = D.title; $("sub").textContent = D.subtitle; $("range").max = LAST;
+D.thinking.forEach((t, i) => {
+  const d = h("details"); d.open = i === 0;
+  const sm = h("summary", null, `${i + 1}. ${t.name}`); sm.append(h("span", null, t.question)); d.append(sm, h("p", null, t.plain));
+  d.append(h("div", "k", "What we did")); const ul = h("ul"); t.here.forEach((x) => ul.append(h("li", null, x))); d.append(ul);
+  for (const [k, v] of [["How it fails", t.fails], ["How we check", t.check], ["Still missing", t.gap]]) d.append(h("div", "k", k), h("p", null, v));
+  $("think").append(d);
+});
+D.threads.forEach((x) => $("threads").append(h("li", null, x)));
 R.forEach((r) => { const c = reqChip(r.id); c.dataset.id = r.id; c.title = r.text; $("reqs").append(c); });
 S.forEach((s, i) => {
   const li = h("li"), b = h("button", "card"), t = h("div", "t"); b.type = "button";

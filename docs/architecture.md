@@ -20,6 +20,91 @@ A care manager asks a question in plain language. An agent answers it by queryin
 | nfr-scale | NFR | More data is handled by narrowing with SQL, not by making the prompt longer. | Schema and glossary, Views and full-text index, Evals |
 | nfr-drift | NFR | Typed events, derived numbers and tests keep the code, the prompt and these docs agreeing. | Event protocol, Schema and glossary, Evals |
 
+## Five ways to think about it
+
+Model quality is one of five. Each fails differently.
+
+### The problem: What counts as a right answer?
+
+Before any model work, decide what a good answer is. For a care manager it means finding the people who need attention, saying what the records show, and saying what they cannot show. The data sets traps. A status can say Completed while the comment says the medication was not given, and there are no planned times, so lateness cannot be measured.
+
+What we did:
+- The requirements at the top of this page
+- Eight golden questions in evals/questions.yaml, one of which must be refused
+- A glossary in the schema that states what the data cannot show
+
+How it fails: A fluent answer to the wrong question, such as a number of missed visits when the data cannot measure them.
+
+How we check: Golden questions with required facts, one that must refuse a write, and one that must say something cannot be measured.
+
+Gap: The questions come from one person's reading of the data. No real manager has shaped them yet.
+
+### Judgement: Does it reason well from what it reads?
+
+This is the model and the instructions it follows. It covers which model answers, how much it thinks first, and how the prompt tells it to choose a time window, compare sources and write the answer.
+
+What we did:
+- gpt-5.5 with reasoning off, about 15 seconds for a broad question
+- The system prompt in app/agent.py, versioned by a hash sent with every answer
+- A cheaper model that only suggests follow-ups, outside the loop
+
+How it fails: Wrong scope ("any issues" read as "this week"), clearing a person whose notes it never read, or a long answer that hides the point.
+
+How we check: Repeats and rephrased questions, plus reading the answers.
+
+Gap: We have no evidence yet that thinking longer helps. A drop in recall on varied notes is the signal to try it.
+
+### Capability: What can it see and do?
+
+The tool and the data it can reach. There is one read-only SQL tool, and we tell it about the database up front so it does not have to explore.
+
+What we did:
+- run_sql, one read-only SELECT per call
+- A schema, a roster of people and a glossary, all derived from the data
+- Views that join names to notes, and a full-text search index
+- Caps on rows, cell length and result size
+
+How it fails: It cannot find what it needs, a result is so large it floods the prompt, or a cut-off result looks complete.
+
+How we check: Guardrail tests, a loud truncation warning in the result, and the scale check.
+
+Gap: A second tool is worth adding only if recall fails.
+
+### Control: What stops it going wrong or costing too much?
+
+Limits around the loop. The model chooses its own steps, and the code decides how far it may go.
+
+What we did:
+- A read-only connection with an authorizer that allows only reads
+- At most 8 steps, 150k prompt tokens and 120 seconds, then it must answer
+- Eight live questions at once, then a busy message
+- Text in the database is treated as data, never as instructions
+
+How it fails: A runaway loop, an instruction hidden in a note, a cost spike, or one slow question starving the others.
+
+How we check: A test for each limit, and per-step timings in the logs.
+
+Gap: There is no sign-in or per-team scoping. Production would scope every query to the caller's team in code.
+
+### Trust: Can a person rely on it, and can we tell when it is wrong?
+
+Everything that lets a person check an answer and lets us notice mistakes. Citations open the record behind a claim. A box lists what the records cannot show. The page says which model wrote the answer. The agent and the page share typed events. Evals run before changes ship.
+
+What we did:
+- Tappable citations and names
+- The "what I couldn't determine" box and "Written by gpt-5.5"
+- app/events.py, the typed contract between agent and page
+- Evals with repeats and rephrasings, and logs with a request id
+
+How it fails: An answer that is right but cannot be checked, or wrong with nobody noticing.
+
+How we check: Contract tests between prompt and page, the evals, and a live walk through real questions.
+
+Gap: Real questions from managers, and notes written by someone other than the builder.
+
+- Contracts hold the layers together. Typed events, the citation grammar and one config file stop them drifting apart, which is why a test checks the prompt and the page agree.
+- A feedback loop improves the first two layers without fine-tuning. A failure becomes a rule and a permanent test case.
+
 ## Parts, by layer
 
 Layer: Browser

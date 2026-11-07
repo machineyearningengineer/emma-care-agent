@@ -105,6 +105,12 @@ def problems(data: dict) -> list[str]:
         out += [
             f"edge {e['from']} to {e['to']} names unknown {x}" for x in (e["from"], e["to"]) if x not in nodes
         ]
+    for t in data["thinking"]:
+        out += [
+            f"thinking {t['id']} has no {k}"
+            for k in ("plain", "here", "fails", "check", "gap")
+            if not t.get(k)
+        ]
     steps = data["story"]["steps"]
     if not 7 <= len(steps) <= 9:
         out.append(f"story has {len(steps)} steps, want 7 to 9")
@@ -167,6 +173,26 @@ def markdown(data: dict) -> tuple[str, dict[str, str]]:
     for r in data["requirements"]:
         by = ", ".join(n["label"] for n in data["nodes"] if r["id"] in n["meets"])
         out.append(f"| {r['id']} | {'FR' if r['kind'] == 'functional' else 'NFR'} | {r['text']} | {by} |")
+    out += [
+        "",
+        "## Five ways to think about it",
+        "",
+        "Model quality is one of five. Each fails differently.",
+        "",
+    ]
+    for t in data["thinking"]:
+        out += [f"### {t['name']}: {t['question']}", "", t["plain"], ""]
+        out += ["What we did:"] + [f"- {x}" for x in t["here"]]
+        out += [
+            "",
+            f"How it fails: {t['fails']}",
+            "",
+            f"How we check: {t['check']}",
+            "",
+            f"Gap: {t['gap']}",
+            "",
+        ]
+    out += [f"- {x}" for x in data["threads"]]
     out += ["", "## Parts, by layer", ""]
     for layer in dict.fromkeys(n["layer"] for n in data["nodes"]):
         out += [f"Layer: {layer}", ""]
