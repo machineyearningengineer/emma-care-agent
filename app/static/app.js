@@ -45,7 +45,7 @@ function markdown(text) {
   if (unknowns) html += "</div>";
   return html;
 }
-const snippet = (text) => text.replace(/[#*`]/g, "").replace(/\s+/g, " ").trim().slice(0, 220);
+const snippet = (text) => text.replace(/[#*`]/g, "").replace(/^\s*(?:[-•]|\d+[.)])\s+/gm, "").replace(/\s+/g, " ").trim().slice(0, 220);
 
 /* ---------- Header ---------- */
 const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -108,7 +108,8 @@ function apply(t, ev) {
 
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const queriesOf = (n) => (n === 1 ? "1 query" : `${n} queries`);
-const citedRecords = (text) => new Set([...text.matchAll(CITE)].flatMap((m) => m[2].split(", ").map((n) => `${m[1][0]}${n}`.toLowerCase()))).size;
+const KIND = { v: "visit", f: "form" };
+const citedRecords = (text) => [...new Set([...text.matchAll(CITE)].flatMap((m) => m[2].split(", ").map((n) => `${m[1][0]}${n}`.toLowerCase())))].map((k) => ({ kind: KIND[k[0]], id: k.slice(1) }));
 
 function render(t) {
   const n = t.queries.length, running = t.state === "starting" || t.state === "querying";
@@ -125,13 +126,16 @@ function render(t) {
     t.ui.status.last.textContent = last ? (last.sql.trim().split("\n").find((l) => !/^\s*(--|$)/.test(l)) || last.sql).trim() : "";
   }
   t.queries.forEach((qy, i) => stepNode(t, qy, i));
-  t.ui.answer.innerHTML = t.text ? markdown(t.text) + (t.state === "writing" ? '<span class="caret"></span>' : "") : "";
+  // While writing, show whole lines only: no half-formed words or citations, and the DOM changes once per line, not per token.
+  const shown = t.state === "writing" ? t.text.slice(0, t.text.lastIndexOf("\n") + 1) : t.text;
+  const html = (shown ? markdown(shown) : "") + (t.state === "writing" ? '<span class="caret"></span>' : "");
+  if (t.ui.html !== html) { t.ui.answer.innerHTML = html; t.ui.html = html; }
   const bad = t.state === "failed" || t.state === "stopped";
   t.ui.error.hidden = !bad;
   if (bad) {
     const stopped = t.state === "stopped";
     t.ui.error.querySelector("strong").textContent = stopped ? "Stopped" : "This answer failed";
-    t.ui.error.querySelector("span").textContent = stopped ? "You stopped this answer. Nothing was saved." : t.error;
+    t.ui.error.querySelector("span").textContent = stopped ? "You stopped this answer. Ask again to retry." : t.error;
     t.ui.error.querySelector("small").textContent = t.requestId ? `Request ${t.requestId}` : "";
   }
   t.ui.foot.hidden = t.state !== "done";
@@ -164,7 +168,7 @@ function build(question) {
   const next = el("div", "follow"); next.hidden = true;
   next.append(el("span", "label", "Ask next"));
   node.append(activity, status, answer, error, foot, next);
-  return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null } };
+  return { node, ui: { activity, label: summary.querySelector(".label"), steps, status, answer, error, foot, follow: next, shown: null, html: "" } };
 }
 
 async function submit(question) {
@@ -246,7 +250,6 @@ function stepNode(t, qy, i) {
 function footer(t) {
   const d = t.done, tokens = (d.usage?.prompt_tokens || 0) + (d.usage?.completion_tokens || 0), cited = citedRecords(t.text);
   const parts = [d.replay ? `Recorded answer from ${d.replay.model} on ${d.replay.recorded}` : d.model, `${d.seconds}s`];
-  if (cited) parts.push(plural(cited, "record") + " cited");
   if (tokens) parts.push(`${fmtInt(tokens)} tokens`);
   if (t.requestId) parts.push(`request ${t.requestId}`);
   const copy = el("button", "link-btn", "Copy answer"); copy.type = "button";
@@ -255,7 +258,13 @@ function footer(t) {
     catch { copy.textContent = "Couldn't copy"; }
     setTimeout(() => (copy.textContent = "Copy answer"), 1600);
   });
-  return [...parts.map((p) => Object.assign(el("span"), { textContent: p })), copy];
+  const spans = parts.map((p) => Object.assign(el("span"), { textContent: p }));
+  if (cited.length) {
+    const all = el("button", "link-btn", plural(cited.length, "record") + " cited"); all.type = "button";
+    all.addEventListener("click", () => showCited(cited));
+    spans.splice(2, 0, all);
+  }
+  return [...spans, copy];
 }
 
 /* ---------- Navigation: minimap rail (wide) and bottom sheet (narrow) ---------- */
@@ -311,19 +320,36 @@ addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 const dlg = el("dialog", "record");
 document.body.append(dlg);
 dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
-$("thread").addEventListener("click", async (e) => {
-  const c = e.target.closest(".cite");
-  if (!c) return;
+async function openRecord(kind, id, back) {
   dlg.innerHTML = `<div class="rec-body"><p>Loading…</p></div>`;
-  dlg.showModal();
+  if (!dlg.open) dlg.showModal();
   try {
-    const r = await fetch(`/api/records/${c.dataset.kind}/${c.dataset.id}`);
+    const r = await fetch(`/api/records/${kind}/${id}`);
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
     dlg.innerHTML = renderRecord(await r.json());
   } catch (err) {
-    dlg.innerHTML = `<div class="rec-body"><p>Couldn't load this record: ${esc(err.message)}</p><button class="link-btn" value="x">Close</button></div>`;
+    dlg.innerHTML = `<div class="rec-body"><p>Couldn't load this record: ${esc(err.message)}</p><form method="dialog"><button class="link-btn">Close</button></form></div>`;
   }
-  dlg.querySelector("[value=x]")?.addEventListener("click", () => dlg.close());
+  if (back) {
+    const b = el("button", "link-btn", "Back to list"); b.type = "button"; b.addEventListener("click", back);
+    dlg.querySelector("form").prepend(b);
+  }
+}
+function showCited(cited) {
+  const list = el("div", "rec-body");
+  list.innerHTML = `<h3>${plural(cited.length, "record")} cited</h3>`;
+  for (const { kind, id } of cited) {
+    const b = el("button", "link-btn rec-row", `${kind === "visit" ? "Visit" : "Form"} ${id}`); b.type = "button";
+    b.addEventListener("click", () => openRecord(kind, id, () => showCited(cited)));
+    list.append(b);
+  }
+  list.insertAdjacentHTML("beforeend", `<form method="dialog"><button class="link-btn">Close</button></form>`);
+  dlg.replaceChildren(list);
+  if (!dlg.open) dlg.showModal();
+}
+$("thread").addEventListener("click", (e) => {
+  const c = e.target.closest(".cite");
+  if (c) openRecord(c.dataset.kind, c.dataset.id);
 });
 function renderRecord(r) {
   const head = r.kind === "visit"
