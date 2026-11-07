@@ -149,6 +149,8 @@ What the first eval run caught, and the general fixes it led to:
 - Streaming answers and showing queries live would make the 20–60 s waits on long
   questions feel shorter.
 
+How the design got here, step by step, with what changed and what was turned down: [JOURNEY.md](JOURNEY.md).
+
 ## Layout
 
 ```
