@@ -149,10 +149,11 @@ Tens of thousands of visits a day and thousands of service users:
   `forms(service_user_id, form_config_id)`, plus an indexed generated column for the
   safeguarding "Service user involved" name, or better, a real foreign key.
 - **Free-text search is the part that doesn't scale on plain SQL**, because `LIKE` is a
-  full scan. Next steps would be an FTS5 index (or embeddings) kept in sync by triggers,
-  and a `search_text(terms, since, person)` tool. That is a storage index, not
-  preprocessing of meaning, so the agent still reasons over raw records. I didn't build it
-  here because the evals didn't need it.
+  full scan. The agent already has an FTS5 index over every note, comment and form answer,
+  but `app/db.py` rebuilds it in a temporary database for each connection, which only
+  works at this size. Production needs a persistent index kept in sync by triggers (or
+  embeddings). That is a storage index, not preprocessing of meaning, so the agent still
+  reasons over raw records.
 - **Cost and latency** are bounded per request: one connection per query, a 2-second
   timeout, row and character caps, and a step cap. Each answer reports its token usage.
 
@@ -202,8 +203,8 @@ What the first eval run caught, and the general fixes it led to:
 ## Limitations and what I'd do next
 
 - **Model-written SQL can be valid but wrong.** The trace makes it visible, and the evals
-  catch regressions. Next: run the evals in CI, and add a check that an answer's cited ids
-  exist.
+  catch regressions, including a citation to a record that doesn't exist. Next: run the
+  evals in CI.
 - **Personal data goes to OpenAI.** That's acceptable for synthetic data. Production needs
   a DPA, data minimisation (pseudonymise names before the model sees them), or a
   self-hosted model.
